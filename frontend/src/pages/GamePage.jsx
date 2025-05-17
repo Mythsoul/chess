@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import socket from '../utils/socket';
+import Chessboard from '../components/Chessboard';
 
-export default function GamePage() {
+export default function GamePage({ playerColor }) {
   const [gameState, setGameState] = useState(null);
 
   useEffect(() => {
@@ -10,7 +11,6 @@ export default function GamePage() {
     });
 
     socket.on('gameOver', (result) => {
-      // Handle game over
       console.log('Game Over:', result);
     });
 
@@ -27,14 +27,14 @@ export default function GamePage() {
           <div className="w-full max-w-2xl bg-gray-800 rounded-lg p-4 mb-4">
             {/* Game status */}
             <div className="text-center mb-4">
-              <p className="text-xl">
-                {gameState ? `Current Turn: ${gameState.turn}` : 'Waiting...'}
+              <p className="text-xl font-bold">
+                Playing as {playerColor.toUpperCase()}
               </p>
             </div>
             
-            {/* Chessboard placeholder */}
-            <div className="aspect-square w-full bg-gray-700 rounded-lg">
-              {/* Add actual chessboard later */}
+            {/* Replace chess board placeholder with actual board */}
+            <div className="w-full max-w-2xl mb-4">
+              <Chessboard playerColor={playerColor} />
             </div>
           </div>
           

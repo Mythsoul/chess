@@ -5,6 +5,7 @@ import GamePage from './pages/GamePage';
 function App() {
   const [status, setStatus] = useState('');
   const [isGameStarted, setIsGameStarted] = useState(false);
+  const [playerColor, setPlayerColor] = useState(null);
 
   useEffect(() => {
     socket.on('connect', () => {
@@ -20,8 +21,9 @@ function App() {
       setStatus(data.message);
     });
 
-    socket.on('game_start', (gameData) => {
-      setStatus(`Game starting! You are playing as ${gameData.color}`);
+    socket.on('game_start', (data) => {
+      setStatus('Game starting!');
+      setPlayerColor(data.color);
       setIsGameStarted(true);
     });
 
@@ -39,7 +41,7 @@ function App() {
   };
 
   if (isGameStarted) {
-    return <GamePage />;
+    return <GamePage playerColor={playerColor} />;
   }
 
   return (
