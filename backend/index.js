@@ -2,12 +2,14 @@ import { Server } from "socket.io";
 import http from "http"; 
 import express from "express"; 
 import { GameManager } from "./src/GameManager.js";
+
 const app = express();
 const server = new http.Server(app);
 
-const io = new Server(server , { 
-    cors : { 
-        origin : "*"
+const io = new Server(server, { 
+    cors: { 
+        origin: "*",
+        methods: ["GET", "POST"]
     }
 });
 
@@ -68,11 +70,13 @@ io.on("connection", (socket) => {
     });
 });
 
+app.get("/", (req, res) => { 
+    res.send("Chess Game Backend is running!"); 
+});
 
-app.get("/" , (req , res) =>{ 
-    res.send("Hello World"); 
-})  
 
-server.listen(8080 , ()=>  { 
-    console.log("Server is running on port 3000");  
-})
+const PORT = process.env.PORT || 8080;
+
+server.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+});
