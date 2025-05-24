@@ -29,10 +29,36 @@ export default function LoginForm({ onSuccess, onSwitchToSignup, onForgotPasswor
     }
   }
 
+  const validateForm = () => {
+    const newErrors = {}
+    
+    if (!formData.email) {
+      newErrors.email = 'Email is required'
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      newErrors.email = 'Please enter a valid email address'
+    }
+    
+    if (!formData.password) {
+      newErrors.password = 'Password is required'
+    } else if (formData.password.length < 3) {
+      newErrors.password = 'Password is too short'
+    }
+    
+    return newErrors
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
-    setIsLoading(true)
     setErrors({})
+    
+    // Client-side validation
+    const validationErrors = validateForm()
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors)
+      return
+    }
+    
+    setIsLoading(true)
 
     try {
       const result = await signIn(formData.email, formData.password)
@@ -40,14 +66,35 @@ export default function LoginForm({ onSuccess, onSwitchToSignup, onForgotPasswor
       if (result.success) {
         onSuccess?.(result.data)
       } else {
-        setErrors({ 
-          general: result.message || 'Login failed. Please check your credentials.' 
-        })
+        // Handle specific error types
+        if (result.error === 'INVALID_CREDENTIALS') {
+          setErrors({ 
+            general: 'Invalid email or password. Please try again.' 
+          })
+        } else if (result.error === 'EMAIL_NOT_VERIFIED') {
+          setErrors({ 
+            general: 'Please verify your email address before signing in.' 
+          })
+        } else if (result.error === 'ACCOUNT_LOCKED') {
+          setErrors({ 
+            general: 'Your account has been temporarily locked. Please try again later.' 
+          })
+        } else {
+          setErrors({ 
+            general: result.message || 'Login failed. Please check your credentials.' 
+          })
+        }
       }
     } catch (error) {
-      setErrors({ 
-        general: 'An unexpected error occurred. Please try again.' 
-      })
+      if (error.code === 'NETWORK_ERROR') {
+        setErrors({ 
+          general: 'Network error. Please check your connection and try again.' 
+        })
+      } else {
+        setErrors({ 
+          general: 'An unexpected error occurred. Please try again.' 
+        })
+      }
     } finally {
       setIsLoading(false)
     }

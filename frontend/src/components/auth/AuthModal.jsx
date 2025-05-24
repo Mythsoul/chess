@@ -109,14 +109,39 @@ export default function AuthModal({ isOpen, onClose, onSuccess, defaultView = 'l
               className="absolute inset-0 bg-gradient-to-br from-emerald-600 via-blue-600 to-purple-600"
               animate={{
                 background: [
-                  "linear-gradient(to bottom right, #10B981, #3B82F6, #8B5CF6)",
-                  "linear-gradient(to bottom right, #3B82F6, #8B5CF6, #10B981)",
-                  "linear-gradient(to bottom right, #8B5CF6, #10B981, #3B82F6)",
-                  "linear-gradient(to bottom right, #10B981, #3B82F6, #8B5CF6)"
+                  "linear-gradient(135deg, #10B981, #3B82F6, #8B5CF6)",
+                  "linear-gradient(225deg, #3B82F6, #8B5CF6, #10B981)",
+                  "linear-gradient(315deg, #8B5CF6, #10B981, #3B82F6)",
+                  "linear-gradient(45deg, #10B981, #3B82F6, #8B5CF6)"
                 ]
               }}
-              transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
+              transition={{ duration: 15, repeat: Infinity, ease: "easeInOut" }}
             />
+          </div>
+          
+          {/* Floating orbs */}
+          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            {[...Array(3)].map((_, i) => (
+              <motion.div
+                key={i}
+                className="absolute w-32 h-32 rounded-full bg-gradient-to-r from-emerald-400/20 to-blue-400/20 blur-xl"
+                animate={{
+                  x: [0, 100, 0],
+                  y: [0, -100, 0],
+                  scale: [1, 1.2, 1],
+                }}
+                transition={{
+                  duration: 8 + i * 2,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                  delay: i * 2
+                }}
+                style={{
+                  left: `${20 + i * 30}%`,
+                  top: `${30 + i * 20}%`,
+                }}
+              />
+            ))}
           </div>
 
           {/* Close Button */}
