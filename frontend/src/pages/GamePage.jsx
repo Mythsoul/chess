@@ -1,12 +1,16 @@
 import { useEffect, useState } from "react"
 import socket from "../utils/socket"
 import Chessboard from "../components/Chessboard"
+import GameControls from "../components/GameControls"
 import { motion, AnimatePresence } from "framer-motion"
 import { FaChessKing } from "react-icons/fa"
 
 export default function GamePage({ playerColor }) {
   const [gameState, setGameState] = useState(null)
   const [timeLeft, setTimeLeft] = useState({ white: 600, black: 600 }) // 10 minutes each
+  const [boardFlipped, setBoardFlipped] = useState(false)
+  const [moveHistory, setMoveHistory] = useState([])
+  const [gameStatus, setGameStatus] = useState('playing')
 
   useEffect(() => {
     socket.on("gameUpdate", (update) => {
@@ -46,6 +50,40 @@ export default function GamePage({ playerColor }) {
     if (seconds < 30) return "text-red-400"
     if (seconds < 60) return "text-amber-400"
     return "text-white"
+  }
+
+  // Game control handlers
+  const handleResign = () => {
+    if (window.confirm('Are you sure you want to resign?')) {
+      socket.emit('resign')
+      setGameStatus('finished')
+    }
+  }
+
+  const handleOfferDraw = () => {
+    if (window.confirm('Are you sure you want to offer a draw?')) {
+      socket.emit('offer_draw')
+    }
+  }
+
+  const handleFlipBoard = () => {
+    setBoardFlipped(!boardFlipped)
+  }
+
+  const handleBackToHome = () => {
+    if (gameStatus === 'playing') {
+      if (window.confirm('Are you sure you want to leave the game?')) {
+        socket.emit('leave_game')
+        window.location.href = '/'
+      }
+    } else {
+      window.location.href = '/'
+    }
+  }
+
+  // Get effective player color based on board flip
+  const getEffectivePlayerColor = () => {
+    return boardFlipped ? (playerColor === 'white' ? 'black' : 'white') : playerColor
   }
 
   return (
@@ -242,8 +280,37 @@ export default function GamePage({ playerColor }) {
             </div>
           </motion.div>
 
-          {/* Chess Board */}
-          <Chessboard playerColor={playerColor} />
+          {/* Game Layout with Board and Controls */}
+          <div className="flex flex-col lg:flex-row items-center lg:items-start gap-8 w-full max-w-7xl">
+            <div className="flex-1 flex justify-center">
+              <Chessboard 
+                playerColor={getEffectivePlayerColor()} 
+                boardFlipped={boardFlipped} 
+              />
+            </div>
+            
+            <motion.div 
+              className="flex-shrink-0"
+              initial={{ opacity: 0, x: 50 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ 
+                type: "spring", 
+                stiffness: 200, 
+                damping: 15, 
+                delay: 0.6,
+                duration: 1
+              }}
+            >
+              <GameControls
+                onResign={handleResign}
+                onOfferDraw={handleOfferDraw}
+                onFlipBoard={handleFlipBoard}
+                onBackToHome={handleBackToHome}
+                boardFlipped={boardFlipped}
+                gameStatus={gameStatus}
+              />
+            </motion.div>
+          </div>
 
           {/* Enhanced Game Info Panel */}
           <motion.div
