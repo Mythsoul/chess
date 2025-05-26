@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import socket from "../utils/socket"
 import Chessboard from "../components/Chessboard"
 import GameControls from "../components/GameControls"
+import MoveHistory from "../components/MoveHistory"
 import { motion, AnimatePresence } from "framer-motion"
 import { FaChessKing } from "react-icons/fa"
 
@@ -290,7 +291,7 @@ export default function GamePage({ playerColor }) {
             </div>
             
             <motion.div 
-              className="flex-shrink-0"
+              className="flex-shrink-0 space-y-6"
               initial={{ opacity: 0, x: 50 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ 
@@ -308,6 +309,11 @@ export default function GamePage({ playerColor }) {
                 onBackToHome={handleBackToHome}
                 boardFlipped={boardFlipped}
                 gameStatus={gameStatus}
+              />
+              
+              <MoveHistory
+                moveHistory={moveHistory}
+                currentMoveIndex={moveHistory.length - 1}
               />
             </motion.div>
           </div>
