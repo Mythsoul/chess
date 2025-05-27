@@ -13,3 +13,4 @@ public/bundle.js
 public/bundle.js.map
 
 bun.lock
+.vercel
