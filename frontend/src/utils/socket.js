@@ -1,6 +1,6 @@
 import io from 'socket.io-client';
 
-const socket = io('http://localhost:8080', {
+const socket = io(String(import.meta.env.VITE_SOCKET_SERVER), {
   transports: ['websocket'],
   reconnectionAttempts: 5
 });
