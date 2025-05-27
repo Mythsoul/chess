@@ -61,7 +61,7 @@ io.on("connection", (socket) => {
             }
         }
     });
-
+   
     socket.on("disconnect", () => {
         gameManager.removeUser(socket);
         gameManager.waitingPlayers = gameManager.waitingPlayers.filter(p => p.id !== socket.id);
