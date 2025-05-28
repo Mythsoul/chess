@@ -134,6 +134,19 @@ function AppContent() {
           </motion.div>
         ) : (
           <motion.div className="flex gap-3">
+            {/* Guest indicator */}
+            <motion.div 
+              className="flex items-center gap-2 bg-slate-700/50 backdrop-blur-sm border border-slate-600/50 rounded-xl px-3 py-2"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.2 }}
+            >
+              <div className="w-6 h-6 bg-gradient-to-r from-slate-600 to-slate-500 rounded-full flex items-center justify-center">
+                <FaUser className="text-slate-300 text-xs" />
+              </div>
+              <span className="text-slate-300 text-sm font-medium">Playing as Guest</span>
+            </motion.div>
+            
             <motion.button
               onClick={() => setShowAuthModal(true)}
               className="bg-slate-800/50 hover:bg-slate-700/50 backdrop-blur-sm border border-slate-600/50 text-slate-300 px-4 py-2 rounded-xl transition-all duration-300 flex items-center gap-2"
