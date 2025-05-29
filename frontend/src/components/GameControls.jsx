@@ -86,10 +86,15 @@ export default function GameControls({
                 key={button.id}
                 onClick={button.onClick}
                 disabled={button.disabled}
+                aria-label={button.label}
+                aria-disabled={button.disabled}
+                tabIndex={button.disabled ? -1 : 0}
                 className={`
                   relative overflow-hidden rounded-xl px-4 py-3 text-white font-medium text-sm
                   bg-gradient-to-r ${button.bgColor} 
                   hover:bg-gradient-to-r hover:${button.hoverColor}
+                  focus:bg-gradient-to-r focus:${button.hoverColor}
+                  focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-slate-800
                   disabled:opacity-50 disabled:cursor-not-allowed
                   transition-all duration-300 flex items-center justify-center gap-2
                   border border-white/10
