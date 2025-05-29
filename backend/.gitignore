@@ -14,3 +14,5 @@ public/bundle.js.map
 
 bun.lock
 .vercel
+
+/src/generated/prisma

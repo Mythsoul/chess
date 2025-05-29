@@ -3,6 +3,8 @@ import { useState, useEffect } from "react"
 import socket from "./utils/socket"
 import GamePage from "./pages/GamePage"
 import { motion, AnimatePresence } from "framer-motion"
+import { AuthProvider } from "./contexts/AuthContext"
+import "./config/auth" // Initialize auth configuration
 
 function App() {
   const [status, setStatus] = useState("")
