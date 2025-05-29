@@ -1,15 +1,74 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
-  output   = "../src/generated/prisma"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider = "sqlite"
+  url      = "file:./chess.db"
+}
+
+model User {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  username    String   @unique
+  avatar      String?
+  rating      Int      @default(1200)
+  gamesWon    Int      @default(0)
+  gamesLost   Int      @default(0)
+  gamesDrawn  Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Games as white player
+  gamesAsWhite Game[] @relation("WhitePlayer")
+  // Games as black player
+  gamesAsBlack Game[] @relation("BlackPlayer")
+  
+  // Friendships initiated by this user
+  friendshipsInitiated Friendship[] @relation("FriendshipInitiator")
+  // Friendships received by this user
+  friendshipsReceived  Friendship[] @relation("FriendshipReceiver")
+
+  @@map("users")
+}
+
+model Game {
+  id          String   @id @default(cuid())
+  whiteId     String
+  blackId     String
+  pgn         String   // Store the game in PGN format
+  fen         String?  // Final position in FEN
+  result      String?  // "1-0", "0-1", "1/2-1/2", or null for ongoing
+  status      String   @default("active") // active, completed, abandoned
+  timeControl String   @default("10+0") // Time control format
+  startedAt   DateTime @default(now())
+  endedAt     DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  whitePlayer User @relation("WhitePlayer", fields: [whiteId], references: [id])
+  blackPlayer User @relation("BlackPlayer", fields: [blackId], references: [id])
+
+  @@map("games")
+}
+
+model Friendship {
+  id          String   @id @default(cuid())
+  initiatorId String
+  receiverId  String
+  status      String   @default("pending") // pending, accepted, declined, blocked
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  initiator User @relation("FriendshipInitiator", fields: [initiatorId], references: [id])
+  receiver  User @relation("FriendshipReceiver", fields: [receiverId], references: [id])
+
+  // Ensure unique friendship pairs
+  @@unique([initiatorId, receiverId])
+  @@map("friendships")
 }
