@@ -180,22 +180,37 @@ export default function LoginForm({ onSuccess, onSwitchToSignup, onForgotPasswor
       >
         {/* Email Field */}
         <motion.div>
-          <label className="block text-sm font-medium text-slate-300 mb-2">
+          <label className="block text-sm font-medium text-slate-300 mb-2" htmlFor="login-email">
             Email Address
           </label>
           <motion.input
+            id="login-email"
             type="email"
             name="email"
             value={formData.email}
             onChange={handleChange}
-            className="w-full bg-slate-800/50 border border-slate-600/50 rounded-xl px-4 py-3 text-slate-200 placeholder-slate-400 focus:outline-none focus:border-emerald-500 transition-all duration-300"
+            className={`w-full bg-slate-800/50 border rounded-xl px-4 py-3 text-slate-200 placeholder-slate-400 focus:outline-none transition-all duration-300 ${
+              errors.email 
+                ? 'border-red-500 focus:border-red-400' 
+                : 'border-slate-600/50 focus:border-emerald-500'
+            }`}
             placeholder="Enter your email"
             required
+            autoComplete="email"
             variants={inputVariants}
             whileFocus="focus"
             initial="blur"
             animate="blur"
           />
+          {errors.email && (
+            <motion.p 
+              className="mt-2 text-sm text-red-400"
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+            >
+              {errors.email}
+            </motion.p>
+          )}
         </motion.div>
 
         {/* Password Field */}

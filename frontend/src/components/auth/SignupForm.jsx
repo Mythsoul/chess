@@ -33,6 +33,9 @@ export default function SignupForm({ onSuccess, onSwitchToLogin }) {
         } else if (!emailRegex.test(value)) {
           error = 'Please enter a valid email address'
           isValid = false
+        } else if (value.length > 255) {
+          error = 'Email is too long'
+          isValid = false
         }
         break
 
