@@ -60,13 +60,25 @@ function AppContent() {
   }, [])
 
   const handleJoinGame = () => {
-    if (!isAuthenticated) {
-      setShowAuthModal(true)
-      return
-    }
     setStatus("Finding opponent...")
     setIsLoading(true)
-    socket.emit("init_game")
+    
+    // Send user info with the game request
+    const playerInfo = isAuthenticated 
+      ? { 
+          id: user?.id || 'anonymous', 
+          username: user?.username || 'Anonymous', 
+          email: user?.email || 'guest@chess.com',
+          isGuest: false 
+        }
+      : {
+          id: `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          username: 'Guest',
+          email: 'guest@chess.com', 
+          isGuest: true
+        }
+    
+    socket.emit("init_game", { player: playerInfo })
   }
 
   const handleAuthSuccess = (data) => {
