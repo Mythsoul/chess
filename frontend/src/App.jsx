@@ -3,15 +3,20 @@ import { useState, useEffect } from "react"
 import socket from "./utils/socket"
 import GamePage from "./pages/GamePage"
 import { motion, AnimatePresence } from "framer-motion"
-import { AuthProvider } from "./contexts/AuthContext"
+import { AuthProvider, useAuth } from "./contexts/AuthContext"
+import { signOut } from 'easy.auth98'
+import { FaUser, FaSignOutAlt, FaUserCircle } from 'react-icons/fa'
+import AuthModal from "./components/auth/AuthModal"
 import "./config/auth" // Initialize auth configuration
 
-function App() {
+function AppContent() {
+  const { isAuthenticated, user } = useAuth()
   const [status, setStatus] = useState("")
   const [isGameStarted, setIsGameStarted] = useState(false)
   const [playerColor, setPlayerColor] = useState(null)
   const [isConnected, setIsConnected] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [showAuthModal, setShowAuthModal] = useState(false)
 
   useEffect(() => {
     socket.on("connect", () => {
@@ -55,9 +60,23 @@ function App() {
   }, [])
 
   const handleJoinGame = () => {
+    if (!isAuthenticated) {
+      setShowAuthModal(true)
+      return
+    }
     setStatus("Finding opponent...")
     setIsLoading(true)
     socket.emit("init_game")
+  }
+
+  const handleAuthSuccess = (data) => {
+    setShowAuthModal(false)
+    // Optionally auto-start game after login
+    if (isConnected) {
+      setTimeout(() => {
+        handleJoinGame()
+      }, 1000)
+    }
   }
 
   if (isGameStarted) {
@@ -66,6 +85,64 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center overflow-hidden">
+      {/* User Status - Top Right */}
+      <motion.div 
+        className="absolute top-6 right-6 z-20"
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.5, duration: 0.6 }}
+      >
+        {isAuthenticated ? (
+          <motion.div 
+            className="flex items-center gap-3 bg-slate-800/50 backdrop-blur-sm border border-slate-600/50 rounded-2xl px-4 py-3"
+            whileHover={{ scale: 1.02 }}
+          >
+            <motion.div 
+              className="flex items-center gap-3"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+            >
+              <div className="w-8 h-8 bg-gradient-to-r from-emerald-600 to-blue-600 rounded-full flex items-center justify-center">
+                <FaUserCircle className="text-white text-lg" />
+              </div>
+              <div>
+                <p className="text-slate-200 font-medium text-sm">{user?.username}</p>
+                <p className="text-slate-400 text-xs">{user?.email}</p>
+              </div>
+            </motion.div>
+            <motion.button
+              onClick={() => signOut()}
+              className="text-slate-400 hover:text-red-400 p-1 rounded-lg transition-colors duration-300"
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+              title="Sign Out"
+            >
+              <FaSignOutAlt />
+            </motion.button>
+          </motion.div>
+        ) : (
+          <motion.div className="flex gap-3">
+            <motion.button
+              onClick={() => setShowAuthModal(true)}
+              className="bg-slate-800/50 hover:bg-slate-700/50 backdrop-blur-sm border border-slate-600/50 text-slate-300 px-4 py-2 rounded-xl transition-all duration-300 flex items-center gap-2"
+              whileHover={{ scale: 1.02, y: -2 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              <FaUser />
+              Sign In
+            </motion.button>
+            <motion.button
+              onClick={() => setShowAuthModal(true)}
+              className="bg-gradient-to-r from-emerald-600 to-blue-600 hover:from-emerald-500 hover:to-blue-500 text-white px-4 py-2 rounded-xl transition-all duration-300 flex items-center gap-2"
+              whileHover={{ scale: 1.02, y: -2 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              <FaUserCircle />
+              Sign Up
+            </motion.button>
+          </motion.div>
+        )}
+      </motion.div>
       {/* Background particles */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         {Array.from({ length: 50 }).map((_, i) => (
@@ -285,9 +362,25 @@ function App() {
           )}
         </AnimatePresence>
 
+        {/* Auth Modal */}
+        <AuthModal 
+          isOpen={showAuthModal}
+          onClose={() => setShowAuthModal(false)}
+          onSuccess={handleAuthSuccess}
+          defaultView="login"
+        />
+
         {/* Features */}
    </motion.div>
     </div>
+  )
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   )
 }
 
