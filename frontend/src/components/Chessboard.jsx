@@ -470,10 +470,10 @@ export default function Chessboard({ playerColor = "white" }) {
   const boardToRender = getBoardToRender()
 
   return (
-    <div className="flex flex-col items-center space-y-8 p-8">
+    <div className="flex flex-col items-center space-y-4 md:space-y-8 p-4 md:p-8 max-w-4xl mx-auto">
       {/* Enhanced Turn Indicator */}
       <motion.div
-        className="flex items-center space-x-4 bg-slate-800/95 backdrop-blur-xl rounded-2xl px-6 py-3 border border-slate-600/60 shadow-2xl"
+        className="flex items-center space-x-2 md:space-x-4 bg-slate-800/95 backdrop-blur-xl rounded-2xl px-4 md:px-6 py-2 md:py-3 border border-slate-600/60 shadow-2xl"
         initial={{ y: -30, opacity: 0, scale: 0.9 }}
         animate={{ y: 0, opacity: 1, scale: 1 }}
         transition={{ 
