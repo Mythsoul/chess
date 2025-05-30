@@ -60,7 +60,7 @@ const Square = ({ piece, isDark, onClick, isSelected, isValidMove, isLastMove, r
     const shadow = isWhite ? "drop-shadow-[0_4px_12px_rgba(0,0,0,0.9)]" : "drop-shadow-[0_4px_12px_rgba(255,255,255,0.5)]"
 
     const props = {
-      className: `text-5xl ${color} ${shadow} transition-all duration-700 ease-out`,
+      className: `text-3xl sm:text-4xl md:text-5xl ${color} ${shadow} transition-all duration-700 ease-out`,
     }
 
     switch (p.toLowerCase()) {
