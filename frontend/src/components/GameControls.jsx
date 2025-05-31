@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { FaFlag, FaHandshake, FaRotate, FaHome, FaHistory } from 'react-icons/fa'
+import { FaFlag, FaHandshake, FaRedo, FaHome, FaHistory } from 'react-icons/fa'
 
 export default function GameControls({ 
   onResign, 
@@ -32,7 +32,7 @@ export default function GameControls({
     {
       id: 'flip',
       label: 'Flip Board',
-      icon: FaRotate,
+      icon: FaRedo,
       onClick: onFlipBoard,
       bgColor: 'from-blue-600 to-blue-500',
       hoverColor: 'from-blue-500 to-blue-400',
