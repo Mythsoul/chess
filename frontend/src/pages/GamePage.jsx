@@ -281,8 +281,8 @@ export default function GamePage({ playerColor }) {
             </div>
           </motion.div>
 
-          {/* Game Layout with Board and Controls */}
-          <div className="flex flex-col lg:flex-row items-center lg:items-start gap-8 w-full max-w-7xl">
+          {/* Clean Game Layout */}
+          <div className="flex gap-6 w-full max-w-6xl">
             <div className="flex-1 flex justify-center">
               <Chessboard 
                 playerColor={getEffectivePlayerColor()} 
@@ -290,32 +290,19 @@ export default function GamePage({ playerColor }) {
               />
             </div>
             
-            <motion.div 
-              className="flex-shrink-0 space-y-6"
-              initial={{ opacity: 0, x: 50 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ 
-                type: "spring", 
-                stiffness: 200, 
-                damping: 15, 
-                delay: 0.6,
-                duration: 1
-              }}
-            >
+            <div className="flex flex-col gap-4">
               <GameControls
                 onResign={handleResign}
                 onOfferDraw={handleOfferDraw}
                 onFlipBoard={handleFlipBoard}
                 onBackToHome={handleBackToHome}
-                boardFlipped={boardFlipped}
                 gameStatus={gameStatus}
               />
               
               <MoveHistory
                 moveHistory={moveHistory}
-                currentMoveIndex={moveHistory.length - 1}
               />
-            </motion.div>
+            </div>
           </div>
 
           {/* Enhanced Game Info Panel */}

@@ -419,14 +419,8 @@ export default function Chessboard({ playerColor = "white" }) {
 
         if (move) {
           console.log("Making move:", from, "to", to);
-          const isCapture = board[row][col] !== ""
           socket.emit("move", { from, to })
-          setLastMove({ from, to, captured: isCapture })
-          
-          // Update the turn locally as well
-          const nextTurn = currentTurn === "white" ? "black" : "white"
-          console.log("Setting next turn to:", nextTurn);
-          setCurrentTurn(nextTurn)
+          // Don't update turn locally - wait for server confirmation
         }
       } catch (error) {
         console.error("Invalid move:", error)
