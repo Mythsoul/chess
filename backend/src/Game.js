@@ -5,11 +5,20 @@ export class Game {
     moves = [];
     winner = null;
     chess = null;
+    gameOver = false;
+    gameResult = null;
+    drawOffers = new Set();
+    disconnectedPlayers = new Set();
+    disconnectTimers = new Map();
+    gameStartTime = null;
+    lastMoveTime = null;
     
     constructor(player1, player2) {
         this.player1 = player1;
         this.player2 = player2;
         this.chess = new Chess();
+        this.gameStartTime = Date.now();
+        this.lastMoveTime = Date.now();
     }
   
     makeMove(socket, move) {
@@ -55,13 +64,23 @@ export class Game {
                 };
 
                 if (this.chess.isGameOver()) {
-                    this.winner = this.chess.isCheckmate() ? socket : null;
-                    gameState.gameOver = {
-                        winner: this.winner?.id || null,
-                        reason: this.chess.isCheckmate() ? 'checkmate' : 
-                               this.chess.isDraw() ? 'draw' : 
-                               this.chess.isStalemate() ? 'stalemate' : 'unknown'
-                    };
+                    if (this.chess.isCheckmate()) {
+                        this.winner = socket;
+                        this.gameOver = true;
+                        this.gameResult = {
+                            winner: socket.id,
+                            reason: 'checkmate',
+                            winnerColor: socket === this.player1 ? 'white' : 'black'
+                        };
+                        gameState.gameOver = this.gameResult;
+                    } else if (this.chess.isDraw() || this.chess.isStalemate()) {
+                        this.gameOver = true;
+                        this.gameResult = {
+                            winner: null,
+                            reason: this.chess.isStalemate() ? 'stalemate' : 'draw'
+                        };
+                        gameState.gameOver = this.gameResult;
+                    }
                 }
 
                 return gameState;
@@ -80,5 +99,133 @@ export class Game {
             isGameOver: this.chess.isGameOver(),
             winner: this.winner?.id || null
         };
+    }
+
+    resign(socket) {
+        if (this.gameOver) {
+            return { success: false, error: 'Game is already over' };
+        }
+
+        const isPlayer1 = socket === this.player1;
+        const winner = isPlayer1 ? this.player2 : this.player1;
+        const resigningPlayerColor = isPlayer1 ? 'white' : 'black';
+        
+        this.gameOver = true;
+        this.winner = winner;
+        this.gameResult = {
+            winner: winner.id,
+            reason: 'resignation',
+            resignedBy: socket.id,
+            resignedColor: resigningPlayerColor
+        };
+
+        return {
+            success: true,
+            gameResult: this.gameResult
+        };
+    }
+
+    offerDraw(socket) {
+        if (this.gameOver) {
+            return { success: false, error: 'Game is already over' };
+        }
+
+        const otherPlayer = socket === this.player1 ? this.player2 : this.player1;
+        
+        // If other player already offered a draw, accept it
+        if (this.drawOffers.has(otherPlayer.id)) {
+            this.gameOver = true;
+            this.gameResult = {
+                winner: null,
+                reason: 'draw_agreement',
+                agreedBy: [this.player1.id, this.player2.id]
+            };
+            
+            return {
+                success: true,
+                drawAccepted: true,
+                gameResult: this.gameResult
+            };
+        }
+
+        // Add draw offer
+        this.drawOffers.add(socket.id);
+        return {
+            success: true,
+            drawOffered: true,
+            offeredBy: socket.id
+        };
+    }
+
+    rejectDraw(socket) {
+        const otherPlayer = socket === this.player1 ? this.player2 : this.player1;
+        this.drawOffers.delete(otherPlayer.id);
+        
+        return {
+            success: true,
+            drawRejected: true
+        };
+    }
+
+    handleDisconnect(socket) {
+        if (this.gameOver) return null;
+
+        const isPlayer1 = socket === this.player1;
+        const disconnectedPlayer = socket;
+        const remainingPlayer = isPlayer1 ? this.player2 : this.player1;
+        
+        this.disconnectedPlayers.add(socket.id);
+        
+        // Set a timer for automatic win (30 seconds)
+        const timer = setTimeout(() => {
+            if (!this.gameOver && this.disconnectedPlayers.has(socket.id)) {
+                this.gameOver = true;
+                this.winner = remainingPlayer;
+                this.gameResult = {
+                    winner: remainingPlayer.id,
+                    reason: 'abandonment',
+                    abandonedBy: socket.id,
+                    abandonedColor: isPlayer1 ? 'white' : 'black'
+                };
+                
+                // Notify remaining player
+                remainingPlayer.emit('gameOver', {
+                    type: 'abandonment',
+                    winner: remainingPlayer.id,
+                    result: this.gameResult
+                });
+            }
+        }, 30000); // 30 second timeout
+        
+        this.disconnectTimers.set(socket.id, timer);
+        
+        return {
+            disconnectedPlayer: socket.id,
+            remainingPlayer: remainingPlayer.id,
+            timeout: 30000
+        };
+    }
+
+    handleReconnect(socket) {
+        this.disconnectedPlayers.delete(socket.id);
+        
+        // Clear disconnect timer
+        if (this.disconnectTimers.has(socket.id)) {
+            clearTimeout(this.disconnectTimers.get(socket.id));
+            this.disconnectTimers.delete(socket.id);
+        }
+        
+        return {
+            reconnectedPlayer: socket.id,
+            gameState: this.getGameState()
+        };
+    }
+
+    getOpponent(socket) {
+        return socket === this.player1 ? this.player2 : this.player1;
+    }
+
+    isPlayerInGame(socket) {
+        return socket === this.player1 || socket === this.player2;
     }
 }
