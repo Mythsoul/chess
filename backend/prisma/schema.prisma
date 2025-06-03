@@ -4,8 +4,8 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:./chess.db"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -35,13 +35,17 @@ model User {
 
 model Game {
   id          String   @id @default(cuid())
+  route       String   @unique // Unique route for each game like /game/abc123
   whiteId     String
   blackId     String
-  pgn         String   // Store the game in PGN format
+  pgn         String   @default("") // Store the game in PGN format
   fen         String?  // Final position in FEN
   result      String?  // "1-0", "0-1", "1/2-1/2", or null for ongoing
   status      String   @default("active") // active, completed, abandoned
   timeControl String   @default("10+0") // Time control format
+  endReason   String?  // checkmate, resignation, draw, abandonment, timeout
+  winnerId    String?  // ID of the winner, null for draws
+  moves       Json     @default("[]") // Store moves as JSON array
   startedAt   DateTime @default(now())
   endedAt     DateTime?
   createdAt   DateTime @default(now())
