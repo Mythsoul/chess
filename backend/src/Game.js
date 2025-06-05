@@ -1,4 +1,6 @@
 import { Chess } from "chess.js";
+import { db } from "./database.js";
+
 export class Game {
     player1 = null; // socket
     player2 = null; // socket
@@ -57,6 +59,8 @@ export class Game {
             const result = this.chess.move(move);
             if (result) {
                 this.moves.push(result);
+                this.lastMoveTime = Date.now();
+                
                 const gameState = {
                     valid: true,
                     move: result,
@@ -75,16 +79,23 @@ export class Game {
                     turn: this.chess.turn()
                 };
 
+                // Persist move to database
+                this.saveMoveToDatabase(result);
+
                 if (this.chess.isGameOver()) {
                     if (this.chess.isCheckmate()) {
                         this.winner = socket;
                         this.gameOver = true;
+                        const winnerId = socket === this.player1 ? this.whitePlayer.id : this.blackPlayer.id;
                         this.gameResult = {
-                            winner: socket.id,
+                            winner: winnerId,
                             reason: 'checkmate',
                             winnerColor: socket === this.player1 ? 'white' : 'black'
                         };
                         gameState.gameOver = this.gameResult;
+                        
+                        // End game in database
+                        this.endGameInDatabase('1-0', 'checkmate', winnerId);
                     } else if (this.chess.isDraw() || this.chess.isStalemate()) {
                         this.gameOver = true;
                         this.gameResult = {
@@ -92,6 +103,9 @@ export class Game {
                             reason: this.chess.isStalemate() ? 'stalemate' : 'draw'
                         };
                         gameState.gameOver = this.gameResult;
+                        
+                        // End game in database
+                        this.endGameInDatabase('1/2-1/2', this.chess.isStalemate() ? 'stalemate' : 'draw', null);
                     }
                 }
 
@@ -244,6 +258,33 @@ export class Game {
         } else {
             // Socket check
             return socketOrUserId === this.player1 || socketOrUserId === this.player2;
+        }
+    }
+
+    // Database helper methods
+    async saveMoveToDatabase(move) {
+        try {
+            if (this.id) {
+                await db.addMoveToGame(this.id, {
+                    ...move,
+                    fen: this.chess.fen(),
+                    pgn: this.chess.pgn()
+                });
+                console.log(`Move saved to database for game ${this.id}`);
+            }
+        } catch (error) {
+            console.error('Error saving move to database:', error);
+        }
+    }
+
+    async endGameInDatabase(result, endReason, winnerId) {
+        try {
+            if (this.id) {
+                await db.endGame(this.id, result, endReason, winnerId);
+                console.log(`Game ${this.id} ended in database: ${result} (${endReason})`);
+            }
+        } catch (error) {
+            console.error('Error ending game in database:', error);
         }
     }
 }

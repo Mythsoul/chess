@@ -39,7 +39,35 @@ function AppContent() {
       setStatus(data.message)
     })
 
+    socket.on("authenticated", (data) => {
+      console.log("User authenticated:", data)
+    })
+
+    socket.on("auth_error", (error) => {
+      console.error("Authentication error:", error)
+      setStatus("Authentication failed")
+      setIsLoading(false)
+    })
+
+    socket.on("already_in_game", (data) => {
+      console.log("Already in game:", data)
+      setStatus("You are already in a game!")
+      setIsLoading(false)
+    })
+
+    socket.on("already_waiting", (data) => {
+      console.log("Already waiting:", data)
+      setStatus(data.message)
+    })
+
+    socket.on("error", (error) => {
+      console.error("Socket error:", error)
+      setStatus(error.message || "An error occurred")
+      setIsLoading(false)
+    })
+
     socket.on("game_start", (data) => {
+      console.log("Game starting:", data)
       setStatus("Game starting!")
       setPlayerColor(data.color)
       setIsLoading(false)
@@ -63,22 +91,29 @@ function AppContent() {
     setStatus("Finding opponent...")
     setIsLoading(true)
     
-    // Send user info with the game request
+    // First authenticate with the socket if not already done
     const playerInfo = isAuthenticated 
       ? { 
-          id: user?.id || 'anonymous', 
-          username: user?.username || 'Anonymous', 
-          email: user?.email || 'guest@chess.com',
+          id: user?.id, 
+          username: user?.username || user?.displayName || 'User', 
+          email: user?.email,
+          avatar: user?.avatar || user?.picture,
           isGuest: false 
         }
       : {
-          id: `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          username: 'Guest',
-          email: 'guest@chess.com', 
+          username: `Guest${Math.floor(Math.random() * 1000)}`,
           isGuest: true
         }
     
-    socket.emit("init_game", { player: playerInfo })
+    console.log('Authenticating and joining game with player info:', playerInfo);
+    
+    // Authenticate first, then join game
+    socket.emit("authenticate", playerInfo);
+    
+    // Add delay to allow authentication to complete
+    setTimeout(() => {
+      socket.emit("init_game");
+    }, 100);
   }
 
   const handleAuthSuccess = (data) => {

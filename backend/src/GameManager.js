@@ -92,22 +92,38 @@ export class GameManager {
     async tryMatchPlayers() {
         while (this.waitingPlayers.length >= 2) {
             const player1 = this.waitingPlayers.shift();
-            const player2 = this.waitingPlayers.shift();
+            let player2 = null;
+            let player2Index = -1;
             
-            // Prevent self-matching
-            if (player1.user.id === player2.user.id) {
-                console.log('Prevented self-match for user:', player1.user.id);
-                // Put player2 back in queue and try again
-                this.waitingPlayers.unshift(player2);
-                // Put player1 back too if there are no other players
-                if (this.waitingPlayers.length === 1) {
-                    this.waitingPlayers.unshift(player1);
+            // Find a different player (not the same user)
+            for (let i = 0; i < this.waitingPlayers.length; i++) {
+                const candidate = this.waitingPlayers[i];
+                
+                // Prevent self-matching by checking both user ID and email
+                const isSameUser = (
+                    (player1.user.id && candidate.user.id && player1.user.id === candidate.user.id) ||
+                    (player1.user.email && candidate.user.email && player1.user.email === candidate.user.email) ||
+                    (player1.socket.id === candidate.socket.id)
+                );
+                
+                if (!isSameUser) {
+                    player2 = candidate;
+                    player2Index = i;
                     break;
                 }
-                continue;
             }
             
-            await this.createGame(player1, player2);
+            if (player2) {
+                // Remove the matched player from waiting list
+                this.waitingPlayers.splice(player2Index, 1);
+                console.log(`Matching players: ${player1.user.username} vs ${player2.user.username}`);
+                await this.createGame(player1, player2);
+            } else {
+                // No suitable opponent found, put player1 back
+                console.log('No suitable opponent found for:', player1.user.username);
+                this.waitingPlayers.unshift(player1);
+                break;
+            }
         }
     }
 
