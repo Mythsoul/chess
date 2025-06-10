@@ -135,15 +135,21 @@ export class Game {
         const isPlayer1 = socket === this.player1;
         const winner = isPlayer1 ? this.player2 : this.player1;
         const resigningPlayerColor = isPlayer1 ? 'white' : 'black';
+        const winnerId = isPlayer1 ? this.blackPlayer.id : this.whitePlayer.id;
         
         this.gameOver = true;
         this.winner = winner;
         this.gameResult = {
-            winner: winner.id,
+            winner: winnerId,
             reason: 'resignation',
             resignedBy: socket.id,
-            resignedColor: resigningPlayerColor
+            resignedColor: resigningPlayerColor,
+            winnerColor: resigningPlayerColor === 'white' ? 'black' : 'white'
         };
+
+        // End game in database
+        const result = resigningPlayerColor === 'white' ? '0-1' : '1-0';
+        this.endGameInDatabase(result, 'resignation', winnerId);
 
         return {
             success: true,
@@ -166,6 +172,9 @@ export class Game {
                 reason: 'draw_agreement',
                 agreedBy: [this.player1.id, this.player2.id]
             };
+            
+            // End game in database
+            this.endGameInDatabase('1/2-1/2', 'draw_agreement', null);
             
             return {
                 success: true,

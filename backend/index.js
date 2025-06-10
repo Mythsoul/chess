@@ -100,19 +100,26 @@ io.on("connection", (socket) => {
         if (game) {
             const resignResult = game.resign(socket);
             if (resignResult.success) {
+                console.log("Resignation successful:", resignResult.gameResult);
+                
                 // Notify both players with personalized results
                 [game.player1, game.player2].forEach(player => {
-                    const isWinner = player.id === resignResult.gameResult.winner;
+                    const isWinner = (player === game.player1 ? game.whitePlayer.id : game.blackPlayer.id) === resignResult.gameResult.winner;
                     player.emit("gameOver", {
                         type: 'resignation',
                         winner: resignResult.gameResult.winner,
-                        result: {
-                            ...resignResult.gameResult,
-                            playerResult: isWinner ? 'win' : 'loss'
-                        }
+                        winnerColor: resignResult.gameResult.winnerColor,
+                        resignedBy: resignResult.gameResult.resignedBy,
+                        resignedColor: resignResult.gameResult.resignedColor,
+                        reason: resignResult.gameResult.reason,
+                        playerResult: isWinner ? 'win' : 'loss'
                     });
                 });
+            } else {
+                socket.emit("error", { message: resignResult.error });
             }
+        } else {
+            socket.emit("error", { message: "No active game found" });
         }
     });
 
