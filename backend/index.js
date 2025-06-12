@@ -57,6 +57,9 @@ io.on("connection", (socket) => {
             console.log("Move result:", moveResult);
             
             if (moveResult.valid) {
+                // Include time information in the move result
+                moveResult.timeRemaining = game.getTimeRemaining();
+                
                 // Notify both players
                 const moveNotification = {
                     type: 'move',
@@ -70,8 +73,9 @@ io.on("connection", (socket) => {
                     player.emit("gameUpdate", moveNotification);
                 });
 
-                // If game is over, send additional notification
+                // If game is over, stop all timers and send additional notification
                 if (moveResult.gameOver) {
+                    game.stopAllTimers();
                     [game.player1, game.player2].forEach(player => {
                         const isWinner = player.id === moveResult.gameOver.winner;
                         player.emit("gameOver", {
@@ -102,6 +106,9 @@ io.on("connection", (socket) => {
             if (resignResult.success) {
                 console.log("Resignation successful:", resignResult.gameResult);
                 
+                // Stop all timers
+                game.stopAllTimers();
+                
                 // Notify both players with personalized results
                 [game.player1, game.player2].forEach(player => {
                     const isWinner = (player === game.player1 ? game.whitePlayer.id : game.blackPlayer.id) === resignResult.gameResult.winner;
@@ -131,6 +138,9 @@ io.on("connection", (socket) => {
             const drawResult = game.offerDraw(socket);
             if (drawResult.success) {
                 if (drawResult.drawAccepted) {
+                    // Stop all timers
+                    game.stopAllTimers();
+                    
                     // Game ended in draw
                     [game.player1, game.player2].forEach(player => {
                         player.emit("gameOver", {
@@ -161,6 +171,9 @@ io.on("connection", (socket) => {
         if (game) {
             const drawResult = game.offerDraw(socket); // This will accept if opponent offered
             if (drawResult.success && drawResult.drawAccepted) {
+                // Stop all timers
+                game.stopAllTimers();
+                
                 [game.player1, game.player2].forEach(player => {
                     player.emit("gameOver", {
                         type: 'draw',

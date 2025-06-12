@@ -33,6 +33,25 @@ export class Game {
         this.route = gameData.route;
         this.whitePlayer = gameData.whitePlayer;
         this.blackPlayer = gameData.blackPlayer;
+        
+        // Time controls (10 minutes each side)
+        this.timeControl = {
+            initial: 10 * 60 * 1000, // 10 minutes in milliseconds
+            increment: 0 // no increment for now
+        };
+        
+        this.timeRemaining = {
+            white: this.timeControl.initial,
+            black: this.timeControl.initial
+        };
+        
+        this.timeTimers = {
+            white: null,
+            black: null
+        };
+        
+        this.activeTimer = null;
+        this.startTimer('white'); // White starts
     }
   
     makeMove(socket, move) {
@@ -60,6 +79,9 @@ export class Game {
             if (result) {
                 this.moves.push(result);
                 this.lastMoveTime = Date.now();
+                
+                // Switch timer after a successful move
+                this.switchTimer();
                 
                 const gameState = {
                     valid: true,
@@ -295,5 +317,110 @@ export class Game {
         } catch (error) {
             console.error('Error ending game in database:', error);
         }
+    }
+
+    // Time control methods
+    startTimer(color) {
+        if (this.gameOver) return;
+        
+        this.stopAllTimers();
+        this.activeTimer = color;
+        this.lastMoveTime = Date.now();
+        
+        const timer = setInterval(() => {
+            if (this.gameOver) {
+                clearInterval(timer);
+                return;
+            }
+            
+            this.timeRemaining[color] -= 1000;
+            
+            // Broadcast time update
+            this.broadcastTimeUpdate();
+            
+            // Check if time has run out
+            if (this.timeRemaining[color] <= 0) {
+                this.handleTimeOut(color);
+                clearInterval(timer);
+            }
+        }, 1000);
+        
+        this.timeTimers[color] = timer;
+    }
+    
+    stopAllTimers() {
+        Object.values(this.timeTimers).forEach(timer => {
+            if (timer) clearInterval(timer);
+        });
+        this.timeTimers = { white: null, black: null };
+    }
+    
+    switchTimer() {
+        if (this.gameOver) return;
+        
+        const currentColor = this.activeTimer;
+        const nextColor = currentColor === 'white' ? 'black' : 'white';
+        
+        // Add increment if any
+        if (this.timeControl.increment > 0) {
+            this.timeRemaining[currentColor] += this.timeControl.increment;
+        }
+        
+        this.startTimer(nextColor);
+    }
+    
+    handleTimeOut(color) {
+        if (this.gameOver) return;
+        
+        this.gameOver = true;
+        this.stopAllTimers();
+        
+        const winner = color === 'white' ? this.player2 : this.player1;
+        const winnerId = color === 'white' ? this.blackPlayer.id : this.whitePlayer.id;
+        
+        this.winner = winner;
+        this.gameResult = {
+            winner: winnerId,
+            reason: 'timeout',
+            timeOutColor: color,
+            winnerColor: color === 'white' ? 'black' : 'white'
+        };
+        
+        // End game in database
+        const result = color === 'white' ? '0-1' : '1-0';
+        this.endGameInDatabase(result, 'timeout', winnerId);
+        
+        // Notify both players
+        [this.player1, this.player2].forEach(player => {
+            const isWinner = (player === this.player1 ? this.whitePlayer.id : this.blackPlayer.id) === winnerId;
+            player.emit('gameOver', {
+                type: 'timeout',
+                winner: winnerId,
+                winnerColor: this.gameResult.winnerColor,
+                timeOutColor: color,
+                reason: 'timeout',
+                playerResult: isWinner ? 'win' : 'loss'
+            });
+        });
+    }
+    
+    broadcastTimeUpdate() {
+        const timeUpdate = {
+            white: Math.max(0, this.timeRemaining.white),
+            black: Math.max(0, this.timeRemaining.black),
+            activeTimer: this.activeTimer
+        };
+        
+        [this.player1, this.player2].forEach(player => {
+            player.emit('timeUpdate', timeUpdate);
+        });
+    }
+    
+    getTimeRemaining() {
+        return {
+            white: Math.max(0, this.timeRemaining.white),
+            black: Math.max(0, this.timeRemaining.black),
+            activeTimer: this.activeTimer
+        };
     }
 }

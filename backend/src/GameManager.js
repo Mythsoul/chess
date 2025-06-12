@@ -162,6 +162,11 @@ export class GameManager {
                     username: player1.user.username,
                     rating: player1.user.rating,
                     avatar: player1.user.avatar
+                },
+                timeRemaining: game.getTimeRemaining(),
+                timeControl: {
+                    initial: game.timeControl.initial,
+                    increment: game.timeControl.increment
                 }
             });
             
@@ -180,6 +185,11 @@ export class GameManager {
                     username: player2.user.username,
                     rating: player2.user.rating,
                     avatar: player2.user.avatar
+                },
+                timeRemaining: game.getTimeRemaining(),
+                timeControl: {
+                    initial: game.timeControl.initial,
+                    increment: game.timeControl.increment
                 }
             });
             
