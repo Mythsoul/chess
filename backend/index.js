@@ -83,6 +83,9 @@ io.on("connection", (socket) => {
                             playerResult: isWinner ? 'win' : (moveResult.gameOver.winner ? 'loss' : 'draw')
                         });
                     });
+                    
+                    // Clean up the game
+                    setTimeout(() => gameManager.cleanupGame(game), 5000); // 5 second delay
                 }
             } else {
                 console.log("Invalid move from", socket.id, ":", moveResult.error);
@@ -122,6 +125,9 @@ io.on("connection", (socket) => {
                         playerResult: isWinner ? 'win' : 'loss'
                     });
                 });
+                
+                // Clean up the game after resignation
+                setTimeout(() => gameManager.cleanupGame(game), 5000); // 5 second delay
             } else {
                 socket.emit("error", { message: resignResult.error });
             }
@@ -182,6 +188,9 @@ io.on("connection", (socket) => {
                         playerResult: 'draw'
                     });
                 });
+                
+                // Clean up the game after draw
+                setTimeout(() => gameManager.cleanupGame(game), 5000); // 5 second delay
             }
         }
     });
@@ -244,25 +253,87 @@ io.on("connection", (socket) => {
     });
 
     // Handle reconnection
-    socket.on("reconnect", (gameId) => {
-        console.log("Player attempting to reconnect:", socket.id);
-        const game = gameManager.getGame(socket.id);
-        if (game) {
+    socket.on("reconnect_to_game", async ({ gameRoute, userData }) => {
+        console.log("Player attempting to reconnect to game:", gameRoute, "User:", userData?.username);
+        
+        try {
+            // First, authenticate the user
+            if (userData) {
+                await gameManager.authenticateUser(socket, userData);
+            }
+            
+            const user = gameManager.getUserBySocket(socket.id);
+            if (!user) {
+                socket.emit('reconnect_failed', { error: 'Authentication required' });
+                return;
+            }
+            
+            // Get the game from memory (active games) or database (if needed to restore)
+            let game = gameManager.getGameByRoute(gameRoute);
+            
+            if (!game) {
+                // Try to get from database and restore if it's an active game
+                const dbGame = await db.getGameByRoute(gameRoute);
+                if (!dbGame || dbGame.status !== 'active') {
+                    socket.emit('reconnect_failed', { error: 'Game not found or no longer active' });
+                    return;
+                }
+                
+                // Check if user is part of this game
+                if (!gameManager.canUserAccessGame(user.id, dbGame)) {
+                    socket.emit('reconnect_failed', { error: 'Not authorized for this game' });
+                    return;
+                }
+                
+                // For now, reject reconnection to games not in memory
+                // TODO: Implement game restoration from database
+                socket.emit('reconnect_failed', { error: 'Game session expired. Please start a new game.' });
+                return;
+            }
+            
+            // Check if user is part of this game
+            if (!game.isPlayerInGame(user.id)) {
+                socket.emit('reconnect_failed', { error: 'Not authorized for this game' });
+                return;
+            }
+            
+            // Update socket reference in game
+            if (user.id === game.whitePlayer.id) {
+                game.player1 = socket;
+            } else if (user.id === game.blackPlayer.id) {
+                game.player2 = socket;
+            }
+            
+            // Update mappings
+            gameManager.userGames.set(socket.id, gameRoute);
+            
+            // Handle reconnection in game
             const reconnectResult = game.handleReconnect(socket);
-            if (reconnectResult) {
+            
+            if (reconnectResult && reconnectResult.reconnected) {
                 // Notify opponent about reconnection
                 const opponent = game.getOpponent(socket);
-                opponent.emit("playerReconnected", {
-                    reconnectedPlayer: socket.id,
-                    message: "Opponent reconnected. Game continues."
-                });
+                if (opponent) {
+                    opponent.emit("playerReconnected", {
+                        reconnectedPlayer: socket.id,
+                        message: "Opponent reconnected. Game continues."
+                    });
+                }
                 
                 // Send current game state to reconnected player
-                socket.emit("gameReconnected", {
-                    gameState: reconnectResult.gameState,
-                    message: "Reconnected successfully"
+                socket.emit("game_reconnected", {
+                    gameState: game.getCurrentGameState(),
+                    message: "Reconnected successfully",
+                    playerColor: user.id === game.whitePlayer.id ? 'white' : 'black'
                 });
+                
+                console.log(`Player ${user.username} successfully reconnected to game ${gameRoute}`);
+            } else {
+                socket.emit('reconnect_failed', { error: 'Failed to reconnect to game' });
             }
+        } catch (error) {
+            console.error('Error during reconnection:', error);
+            socket.emit('reconnect_failed', { error: 'Reconnection failed' });
         }
     });
 });
@@ -409,6 +480,22 @@ app.post("/game/:route/join", async (req, res) => {
         
         // Check if user is part of this game
         const isPlayer = game.whiteId === userId || game.blackId === userId;
+        
+        // Check access permissions
+        if (!isPlayer) {
+            // For non-players, only allow access to completed games that aren't guest-only
+            if (game.status === 'active') {
+                return res.status(403).json({ error: "You are not authorized to view this active game" });
+            }
+            
+            // Check if both players are guests
+            const whiteIsGuest = game.whitePlayer.email?.includes('@chess.local') || game.whitePlayer.email?.startsWith('guest_');
+            const blackIsGuest = game.blackPlayer.email?.includes('@chess.local') || game.blackPlayer.email?.startsWith('guest_');
+            
+            if (whiteIsGuest && blackIsGuest) {
+                return res.status(404).json({ error: "Game not found" });
+            }
+        }
         
         res.json({
             game: {

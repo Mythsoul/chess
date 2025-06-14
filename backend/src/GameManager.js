@@ -265,4 +265,65 @@ export class GameManager {
         const reconnectResult = game.handleReconnect(socket);
         return reconnectResult;
     }
+    
+    // Clean up game when it ends
+    async cleanupGame(game) {
+        if (!game) return;
+        
+        try {
+            // Clean up game resources
+            game.cleanup();
+            
+            // If both players are guests, remove the game entirely
+            if (game.areBothPlayersGuests()) {
+                console.log(`Removing guest game: ${game.route}`);
+                this.games.delete(game.route);
+                
+                // Remove from user games mapping
+                for (const [socketId, gameRoute] of this.userGames.entries()) {
+                    if (gameRoute === game.route) {
+                        this.userGames.delete(socketId);
+                    }
+                }
+                
+                // Remove game from database if it exists
+                if (game.id) {
+                    await db.deleteGame(game.id);
+                }
+            } else {
+                console.log(`Preserving game for registered users: ${game.route}`);
+                // Keep the game in memory for potential reconnections
+                // But remove active user mappings
+                for (const [socketId, gameRoute] of this.userGames.entries()) {
+                    if (gameRoute === game.route) {
+                        this.userGames.delete(socketId);
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error cleaning up game:', error);
+        }
+    }
+    
+    // Get user by socket ID
+    getUserBySocket(socketId) {
+        return this.socketUsers.get(socketId);
+    }
+    
+    // Check if user can access a game
+    canUserAccessGame(userId, game) {
+        if (!game || !userId) return false;
+        
+        // Players can always access their own games
+        if (game.isPlayerInGame(userId)) {
+            return true;
+        }
+        
+        // For finished games, allow spectating if not both guests
+        if (game.gameOver && !game.areBothPlayersGuests()) {
+            return true;
+        }
+        
+        return false;
+    }
 }

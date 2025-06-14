@@ -423,4 +423,48 @@ export class Game {
             activeTimer: this.activeTimer
         };
     }
+    
+    // Check if both players are guest users
+    areBothPlayersGuests() {
+        const whiteIsGuest = this.whitePlayer?.email?.includes('@chess.local') || this.whitePlayer?.email?.startsWith('guest_');
+        const blackIsGuest = this.blackPlayer?.email?.includes('@chess.local') || this.blackPlayer?.email?.startsWith('guest_');
+        return whiteIsGuest && blackIsGuest;
+    }
+    
+    // Get current game state for reconnection
+    getCurrentGameState() {
+        return {
+            board: this.chess.board(),
+            fen: this.chess.fen(),
+            pgn: this.chess.pgn(),
+            turn: this.chess.turn(),
+            moves: this.moves,
+            isCheck: this.chess.isCheck(),
+            isCheckmate: this.chess.isCheckmate(),
+            isDraw: this.chess.isDraw(),
+            isGameOver: this.chess.isGameOver(),
+            gameOver: this.gameOver,
+            gameResult: this.gameResult,
+            timeRemaining: this.getTimeRemaining(),
+            whitePlayer: this.whitePlayer,
+            blackPlayer: this.blackPlayer,
+            gameId: this.id,
+            gameRoute: this.route
+        };
+    }
+    
+    // Clean up all resources
+    cleanup() {
+        this.stopAllTimers();
+        
+        // Clear all disconnect timers
+        for (const timer of this.disconnectTimers.values()) {
+            if (timer) clearTimeout(timer);
+        }
+        this.disconnectTimers.clear();
+        
+        // Clear other resources
+        this.drawOffers.clear();
+        this.disconnectedPlayers.clear();
+    }
 }

@@ -391,6 +391,25 @@ class DatabaseService {
       return null;
     }
   }
+  
+  async deleteGame(gameId) {
+    if (this.fallbackMode) {
+      const deleted = this.inMemoryGames.delete(gameId);
+      console.log(`Deleted game ${gameId} from memory:`, deleted);
+      return deleted;
+    }
+    
+    try {
+      await this.prisma.game.delete({
+        where: { id: gameId }
+      });
+      console.log(`Deleted game ${gameId} from database`);
+      return true;
+    } catch (error) {
+      console.error('Error deleting game:', error);
+      return false;
+    }
+  }
 }
 
 const db = new DatabaseService();
