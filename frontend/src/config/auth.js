@@ -2,8 +2,7 @@ import { configure } from 'easy.auth98'
 
 // Configure EasyAuth SDK
 configure({
-  // Using the default hosted EasyAuth service
-  baseURL: import.meta.env.VITE_EASY_AUTH_BASE_URL || 'https://auth.easy.com',
+  
   timeout: 15000,
   tokenCookies: {
     access: 'chess_access_token',
