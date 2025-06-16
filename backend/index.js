@@ -246,6 +246,9 @@ io.on("connection", (socket) => {
             }
         }
         
+        // Clean up user session mappings
+        gameManager.cleanupUserSession(socket);
+        
         // Remove from matchmaking
         gameManager.waitingPlayers = gameManager.waitingPlayers.filter(p => p.socket.id !== socket.id);
         

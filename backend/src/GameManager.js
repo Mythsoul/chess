@@ -37,6 +37,16 @@ export class GameManager {
                 });
             }
 
+            // Handle multiple tabs for same user
+            const existingSocket = this.userSockets.get(user.id);
+            if (existingSocket && existingSocket.connected) {
+                // Disconnect the old socket to prevent conflicts
+                existingSocket.emit('session_replaced', { 
+                    message: 'New session started from another tab' 
+                });
+                existingSocket.disconnect();
+            }
+
             // Store user-socket mapping
             this.socketUsers.set(socket.id, user);
             this.userSockets.set(user.id, socket);
@@ -67,25 +77,51 @@ export class GameManager {
             }
         }
 
-        // Check if user is already in a game
-        if (this.userGames.has(socket.id)) {
-            const existingGameRoute = this.userGames.get(socket.id);
+        // Check if user is already in a game (check by user ID, not socket ID)
+        const existingGameRoute = this.findUserGame(user.id);
+        if (existingGameRoute) {
             socket.emit('already_in_game', { gameRoute: existingGameRoute });
             return;
         }
 
-        // Check if user is already waiting
+        // Check if user is already waiting (prevent multiple tabs from same user)
         const alreadyWaiting = this.waitingPlayers.find(p => p.user.id === user.id);
         if (alreadyWaiting) {
             socket.emit('already_waiting', { message: 'Already in matchmaking queue' });
             return;
         }
 
+        // Remove any previous socket connections for this user from waiting list
+        this.waitingPlayers = this.waitingPlayers.filter(p => p.user.id !== user.id);
+
         // Add to waiting players
         this.waitingPlayers.push({ socket, user });
         socket.emit('waiting', { message: 'Waiting for opponent...' });
         
         await this.tryMatchPlayers();
+    }
+
+    // Clean up user session on disconnect
+    cleanupUserSession(socket) {
+        const user = this.socketUsers.get(socket.id);
+        if (user) {
+            // Only remove user socket mapping if this is the current socket for the user
+            const currentSocket = this.userSockets.get(user.id);
+            if (currentSocket && currentSocket.id === socket.id) {
+                this.userSockets.delete(user.id);
+            }
+            this.socketUsers.delete(socket.id);
+        }
+    }
+
+    // Helper method to find if a user is in any game
+    findUserGame(userId) {
+        for (const [gameRoute, game] of this.games) {
+            if (game.whitePlayer?.id === userId || game.blackPlayer?.id === userId) {
+                return gameRoute;
+            }
+        }
+        return null;
     }
 
     // Try to match waiting players

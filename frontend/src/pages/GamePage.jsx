@@ -15,10 +15,54 @@ export default function GamePage({ playerColor }) {
   const [gameStatus, setGameStatus] = useState('playing')
   const [gameOverResult, setGameOverResult] = useState(null)
   const [showGameOverModal, setShowGameOverModal] = useState(false)
+  
+  // Move history navigation state
+  const [currentMoveIndex, setCurrentMoveIndex] = useState(-1)
+  const [isViewingHistory, setIsViewingHistory] = useState(false)
+  const [historyPositions, setHistoryPositions] = useState([]) // Store board positions for each move
+
+  // Move history navigation functions
+  const handleMoveSelect = (moveIndex) => {
+    setCurrentMoveIndex(moveIndex)
+    setIsViewingHistory(moveIndex < moveHistory.length - 1)
+    
+    // Here you would reconstruct the board position at this move
+    // For now, we'll just update the visual indicator
+    console.log(`Viewing position after move ${moveIndex + 1}`)
+  }
+
+  // Get the board position for the current move index
+  const getCurrentBoardPosition = () => {
+    if (!gameState || isViewingHistory) {
+      // If viewing history, you'd reconstruct the position here
+      // For now, return the current game state
+      return gameState
+    }
+    return gameState
+  }
 
   useEffect(() => {
     socket.on("gameUpdate", (update) => {
       setGameState(update)
+      
+      // Update move history and positions
+      if (update.moves) {
+        setMoveHistory(update.moves)
+        setCurrentMoveIndex(update.moves.length - 1)
+        
+        // If not viewing history, update to current position
+        if (!isViewingHistory) {
+          setCurrentMoveIndex(update.moves.length - 1)
+        }
+        
+        // Store positions for history navigation (you'd need to calculate these)
+        // For now, we'll just track the moves and reconstruct positions as needed
+      }
+      
+      // Update time
+      if (update.timeRemaining) {
+        setTimeLeft(update.timeRemaining)
+      }
     })
 
     socket.on("gameOver", (result) => {
@@ -330,6 +374,9 @@ export default function GamePage({ playerColor }) {
               
               <MoveHistory
                 moveHistory={moveHistory}
+                currentMoveIndex={currentMoveIndex}
+                onMoveSelect={handleMoveSelect}
+                isViewingHistory={isViewingHistory}
               />
             </div>
           </div>
