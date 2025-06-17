@@ -77,11 +77,13 @@ const StaticPiece = ({ piece }) => {
 }
 
 // Static square - no animations at all
-const Square = ({ piece, isDark, onClick, isSelected, isValidMove, isLastMove, row, col }) => {
+const Square = ({ piece, isDark, onClick, isSelected, isValidMove, isLastMove, isPremove, row, col }) => {
   let bgColor = isDark ? "bg-amber-800" : "bg-amber-100"
   
   if (isSelected) {
     bgColor = "bg-yellow-400"
+  } else if (isPremove) {
+    bgColor = isDark ? "bg-purple-700" : "bg-purple-300"
   } else if (isLastMove) {
     bgColor = isDark ? "bg-yellow-600" : "bg-yellow-300"
   } else if (isValidMove) {
@@ -137,6 +139,10 @@ export default function Chessboard({ playerColor = "white", onMove, onGameOver, 
   const [gameOver, setGameOver] = useState(false)
   const [gameStatus, setGameStatus] = useState("")
   const [draggedPiece, setDraggedPiece] = useState(null)
+  
+  // Premove state
+  const [premove, setPremove] = useState(null) // { from, to }
+  const [premoveHighlight, setPremoveHighlight] = useState(null)
 
   const [chess] = useState(new Chess())
   const boardRef = useRef()
@@ -180,6 +186,24 @@ export default function Chessboard({ playerColor = "white", onMove, onGameOver, 
 
     socket.off("gameUpdate").on("gameUpdate", handleGameUpdate)
     socket.off("moveError").on("moveError", handleMoveError)
+    
+    // Premove socket listeners
+    socket.off("premove_set").on("premove_set", (data) => {
+      console.log("✅ Premove set:", data.premove)
+      setPremoveHighlight({ from: data.premove.from, to: data.premove.to })
+    })
+    
+    socket.off("premove_error").on("premove_error", (data) => {
+      console.log("❌ Premove error:", data.error)
+      setPremove(null)
+      setPremoveHighlight(null)
+    })
+    
+    socket.off("premove_cleared").on("premove_cleared", () => {
+      console.log("🧹 Premove cleared")
+      setPremove(null)
+      setPremoveHighlight(null)
+    })
 
     return () => {
       socket.off("gameUpdate")
@@ -224,15 +248,69 @@ export default function Chessboard({ playerColor = "white", onMove, onGameOver, 
 
     // Check if it's the player's turn
     if (currentTurn !== playerColor) {
-      console.log("Not your turn");
-      return;
+      console.log("Not your turn - checking for premove");
+      
+      // Handle premove logic
+      if (!selectedSquare) {
+        // Select piece for premove if it's player's piece
+        if (piece && pieceColor === playerColor) {
+          console.log("Selecting piece for premove");
+          setSelectedSquare([row, col])
+          setValidMoves(getValidMoves(row, col))
+        }
+        return
+      }
+
+      // If clicking same square, deselect
+      if (selectedSquare[0] === row && selectedSquare[1] === col) {
+        console.log("Deselecting premove piece");
+        setSelectedSquare(null)
+        setValidMoves([])
+        // Clear any existing premove
+        if (premove) {
+          socket.emit("clear_premove")
+        }
+        return
+      }
+
+      // If clicking another piece of same color, select it
+      if (piece && pieceColor === playerColor) {
+        console.log("Selecting different piece for premove");
+        setSelectedSquare([row, col])
+        setValidMoves(getValidMoves(row, col))
+        // Clear any existing premove
+        if (premove) {
+          socket.emit("clear_premove")
+        }
+        return
+      }
+
+      // Attempt to make a premove
+      if (isValidMoveSquare(row, col)) {
+        const [fromRow, fromCol] = selectedSquare
+        const from = coordsToChessNotation(fromRow, fromCol)
+        const to = square
+        
+        console.log("Setting premove:", from, "to", to);
+        setPremove({ from, to })
+        socket.emit("set_premove", { from, to })
+      }
+
+      setSelectedSquare(null)
+      setValidMoves([])
+      return
     }
 
+    // Regular move logic (when it's player's turn)
     if (!selectedSquare) {
       if (piece && pieceColor === playerColor) {
         console.log("Selecting piece");
         setSelectedSquare([row, col])
         setValidMoves(getValidMoves(row, col))
+        // Clear any existing premove when making regular moves
+        if (premove) {
+          socket.emit("clear_premove")
+        }
       }
       return
     }
@@ -247,7 +325,7 @@ export default function Chessboard({ playerColor = "white", onMove, onGameOver, 
     if (piece && pieceColor === playerColor) {
       console.log("Selecting different piece");
       setSelectedSquare([row, col])
-        setValidMoves(getValidMoves(row, col))
+      setValidMoves(getValidMoves(row, col))
       return
     }
 
@@ -296,6 +374,13 @@ export default function Chessboard({ playerColor = "white", onMove, onGameOver, 
     return isLastMoveSquare(actualRow, actualCol)
   }
 
+  const isSquarePremove = (displayRow, displayCol) => {
+    if (!premoveHighlight) return false
+    const [actualRow, actualCol] = getActualCoordinates(displayRow, displayCol)
+    const square = coordsToChessNotation(actualRow, actualCol)
+    return square === premoveHighlight.from || square === premoveHighlight.to
+  }
+
   const boardToRender = getBoardToRender()
 
   return (
@@ -329,6 +414,7 @@ export default function Chessboard({ playerColor = "white", onMove, onGameOver, 
                   isSelected={isSquareSelected(displayRow, displayCol)}
                   isValidMove={isSquareValidMove(displayRow, displayCol)}
                   isLastMove={isSquareLastMove(displayRow, displayCol)}
+                  isPremove={isSquarePremove(displayRow, displayCol)}
                   row={actualRow}
                   col={actualCol}
                   onClick={() => {

@@ -21,6 +21,9 @@ export class Game {
     whitePlayer = null; // user object
     blackPlayer = null; // user object
     
+    // Premove system
+    premoves = new Map(); // socketId -> premove object
+    
     constructor(player1Socket, player2Socket, gameData = {}) {
         this.player1 = player1Socket; // white player socket
         this.player2 = player2Socket; // black player socket
@@ -103,6 +106,57 @@ export class Game {
 
                 // Persist move to database
                 this.saveMoveToDatabase(result);
+
+                // Check for premove execution after the move
+                let premoveResult = null;
+                if (!this.chess.isGameOver()) {
+                    // Try to execute opponent's premove
+                    premoveResult = this.executePremove(otherPlayer);
+                    if (premoveResult && premoveResult.success) {
+                        // Premove was executed successfully
+                        this.moves.push(premoveResult.move);
+                        this.lastMoveTime = Date.now();
+                        this.switchTimer(); // Switch timer again for premove
+                        
+                        // Update game state with premove
+                        gameState.premoveExecuted = {
+                            move: premoveResult.move,
+                            fen: this.chess.fen(),
+                            turn: this.chess.turn(),
+                            isCheck: this.chess.isCheck(),
+                            isCheckmate: this.chess.isCheckmate(),
+                            isDraw: this.chess.isDraw(),
+                            isGameOver: this.chess.isGameOver()
+                        };
+                        
+                        // Save premove to database
+                        this.saveMoveToDatabase(premoveResult.move);
+                        
+                        // Check if game ended after premove
+                        if (this.chess.isGameOver()) {
+                            if (this.chess.isCheckmate()) {
+                                this.winner = otherPlayer;
+                                this.gameOver = true;
+                                const winnerId = otherPlayer === this.player1 ? this.whitePlayer.id : this.blackPlayer.id;
+                                this.gameResult = {
+                                    winner: winnerId,
+                                    reason: 'checkmate',
+                                    winnerColor: otherPlayer === this.player1 ? 'white' : 'black'
+                                };
+                                gameState.premoveExecuted.gameOver = this.gameResult;
+                                this.endGameInDatabase('1-0', 'checkmate', winnerId);
+                            } else if (this.chess.isDraw() || this.chess.isStalemate()) {
+                                this.gameOver = true;
+                                this.gameResult = {
+                                    winner: null,
+                                    reason: this.chess.isStalemate() ? 'stalemate' : 'draw'
+                                };
+                                gameState.premoveExecuted.gameOver = this.gameResult;
+                                this.endGameInDatabase('1/2-1/2', this.chess.isStalemate() ? 'stalemate' : 'draw', null);
+                            }
+                        }
+                    }
+                }
 
                 if (this.chess.isGameOver()) {
                     if (this.chess.isCheckmate()) {
@@ -453,6 +507,69 @@ export class Game {
         };
     }
     
+    // Premove system methods
+    setPremove(socket, move) {
+        // Only allow premoves when it's not the player's turn
+        const isWhiteTurn = this.chess.turn() === 'w';
+        const isWhitePlayer = socket === this.player1;
+        
+        if (isWhiteTurn === isWhitePlayer) {
+            // It's the player's turn, they should make a regular move
+            return { success: false, error: "Cannot premove on your turn" };
+        }
+        
+        // Validate the premove against current position
+        const tempChess = new Chess(this.chess.fen());
+        try {
+            const moveResult = tempChess.move(move);
+            if (!moveResult) {
+                return { success: false, error: "Invalid premove" };
+            }
+            
+            // Store the premove
+            this.premoves.set(socket.id, {
+                move: move,
+                timestamp: Date.now(),
+                validated: true
+            });
+            
+            return { success: true, premove: move };
+        } catch (error) {
+            return { success: false, error: "Invalid premove format" };
+        }
+    }
+    
+    clearPremove(socket) {
+        this.premoves.delete(socket.id);
+        return { success: true };
+    }
+    
+    executePremove(socket) {
+        const premove = this.premoves.get(socket.id);
+        if (!premove) {
+            return null;
+        }
+        
+        // Clear the premove first
+        this.premoves.delete(socket.id);
+        
+        // Try to execute the premove
+        try {
+            const moveResult = this.chess.move(premove.move);
+            if (moveResult) {
+                return {
+                    success: true,
+                    move: moveResult,
+                    wasPremove: true
+                };
+            }
+        } catch (error) {
+            console.log("Premove execution failed:", error);
+        }
+        
+        return { success: false, error: "Premove no longer valid" };
+    }
+
     // Clean up all resources
     cleanup() {
         this.stopAllTimers();
@@ -462,6 +579,9 @@ export class Game {
             if (timer) clearTimeout(timer);
         }
         this.disconnectTimers.clear();
+        
+        // Clear premoves
+        this.premoves.clear();
         
         // Clear other resources
         this.drawOffers.clear();

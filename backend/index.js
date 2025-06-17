@@ -100,6 +100,31 @@ io.on("connection", (socket) => {
         }
     });
 
+    // Handle premoves
+    socket.on("set_premove", (move) => {
+        console.log("Premove received from", socket.id, ":", move);
+        const game = gameManager.getGame(socket.id);
+        if (game) {
+            const premoveResult = game.setPremove(socket, move);
+            if (premoveResult.success) {
+                socket.emit("premove_set", { premove: premoveResult.premove });
+                console.log("Premove set for", socket.id);
+            } else {
+                socket.emit("premove_error", { error: premoveResult.error });
+                console.log("Premove error for", socket.id, ":", premoveResult.error);
+            }
+        }
+    });
+
+    socket.on("clear_premove", () => {
+        console.log("Clear premove from", socket.id);
+        const game = gameManager.getGame(socket.id);
+        if (game) {
+            game.clearPremove(socket);
+            socket.emit("premove_cleared");
+        }
+    });
+
     // Handle resignation
     socket.on("resign", () => {
         console.log("Player resigned:", socket.id);
