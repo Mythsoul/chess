@@ -222,7 +222,7 @@ function AppContent() {
       </div>
 
       <motion.div
-        className="text-center p-8 max-w-2xl mx-auto relative z-10"
+        className="text-center p-4 md:p-8 max-w-2xl mx-auto relative z-10 px-4 sm:px-6 lg:px-8"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 1 }}
@@ -235,7 +235,7 @@ function AppContent() {
           transition={{ type: "spring", stiffness: 300, damping: 30 }}
         >
           <motion.h1
-            className="text-7xl font-bold bg-gradient-to-r from-emerald-400 via-blue-500 to-purple-600 bg-clip-text text-transparent mb-4"
+            className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold bg-gradient-to-r from-emerald-400 via-blue-500 to-purple-600 bg-clip-text text-transparent mb-4"
             animate={{
               backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"],
             }}
@@ -244,7 +244,7 @@ function AppContent() {
             Chess Master
           </motion.h1>
           <motion.div
-            className="text-6xl mb-6 flex justify-center space-x-2"
+            className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl mb-6 flex justify-center space-x-1 sm:space-x-2"
             initial={{ scale: 0.9 }}
             animate={{ scale: 1 }}
             transition={{ duration: 0.5, delay: 0.3 }}
@@ -266,7 +266,7 @@ function AppContent() {
             ))}
           </motion.div>
           <motion.p
-            className="text-slate-300 text-xl leading-relaxed"
+            className="text-slate-300 text-lg sm:text-xl leading-relaxed px-4 sm:px-0"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 1 }}
@@ -304,7 +304,7 @@ function AppContent() {
           transition={{ delay: 1.4, type: "spring", stiffness: 300, damping: 30 }}
         >
           <motion.button
-            className="group relative bg-gradient-to-r from-emerald-600 to-blue-600 text-white px-12 py-4 rounded-2xl text-2xl font-bold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed border border-emerald-400/50 overflow-hidden"
+            className="group relative bg-gradient-to-r from-emerald-600 to-blue-600 text-white px-8 sm:px-12 py-3 sm:py-4 rounded-2xl text-lg sm:text-xl md:text-2xl font-bold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed border border-emerald-400/50 overflow-hidden"
             onClick={handleJoinGame}
             disabled={!isConnected || isLoading}
             whileHover={{ scale: 1.05 }}
