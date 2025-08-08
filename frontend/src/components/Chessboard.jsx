@@ -1,7 +1,10 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import socket from "../utils/socket"
 import { Chess } from "chess.js"
 import { GiChessKing, GiChessQueen, GiChessRook, GiChessBishop, GiChessKnight, GiChessPawn } from "react-icons/gi"
+import { motion, AnimatePresence } from "framer-motion"
+import { useSpring, animated, config } from "@react-spring/web"
+import { useGesture } from "react-use-gesture"
 
 const initialBoard = [
   ["r", "n", "b", "q", "k", "b", "n", "r"],
@@ -42,34 +45,47 @@ const getPieceColor = (piece) => {
   return piece === piece.toUpperCase() ? "white" : "black"
 }
 
+// Static piece component - no animations
+const StaticPiece = ({ piece }) => {
+  const isWhite = piece === piece.toUpperCase()
+  const getPieceIcon = (p) => {
+    switch (p.toLowerCase()) {
+      case "k": return GiChessKing
+      case "q": return GiChessQueen
+      case "r": return GiChessRook
+      case "b": return GiChessBishop
+      case "n": return GiChessKnight
+      case "p": return GiChessPawn
+      default: return null
+    }
+  }
+  
+  const PieceIcon = getPieceIcon(piece)
+  if (!PieceIcon) return null
+
+  return (
+    <div className="flex items-center justify-center w-full h-full">
+      <PieceIcon 
+        className={`text-6xl select-none cursor-pointer ${
+          isWhite 
+            ? "text-slate-100 drop-shadow-[2px_2px_4px_rgba(0,0,0,0.8)]" 
+            : "text-slate-900 drop-shadow-[2px_2px_4px_rgba(255,255,255,0.8)]"
+        }`}
+      />
+    </div>
+  )
+}
+
+// Static square - no animations at all
 const Square = ({ piece, isDark, onClick, isSelected, isValidMove, isLastMove, row, col }) => {
   let bgColor = isDark ? "bg-amber-800" : "bg-amber-100"
-
+  
   if (isSelected) {
     bgColor = "bg-yellow-400"
   } else if (isLastMove) {
     bgColor = isDark ? "bg-yellow-600" : "bg-yellow-300"
   } else if (isValidMove) {
     bgColor = isDark ? "bg-green-700" : "bg-green-300"
-  }
-
-  const getPieceComponent = (p) => {
-    const isWhite = p === p.toUpperCase()
-    const color = isWhite 
-      ? "text-slate-100 drop-shadow-[2px_2px_4px_rgba(0,0,0,0.8)]" 
-      : "text-slate-900 drop-shadow-[2px_2px_4px_rgba(255,255,255,0.8)]"
-
-    const props = { className: `text-6xl ${color} cursor-pointer select-none` }
-
-    switch (p.toLowerCase()) {
-      case "k": return <GiChessKing {...props} />
-      case "q": return <GiChessQueen {...props} />
-      case "r": return <GiChessRook {...props} />
-      case "b": return <GiChessBishop {...props} />
-      case "n": return <GiChessKnight {...props} />
-      case "p": return <GiChessPawn {...props} />
-      default: return null
-    }
   }
 
   const file = String.fromCharCode(97 + col)
@@ -79,9 +95,10 @@ const Square = ({ piece, isDark, onClick, isSelected, isValidMove, isLastMove, r
 
   return (
     <div
-      className={`${bgColor} aspect-square flex items-center justify-center cursor-pointer relative hover:brightness-110 transition-all duration-150`}
+      className={`${bgColor} aspect-square relative cursor-pointer`}
       onClick={onClick}
     >
+      {/* Coordinate Labels */}
       {showFileLabel && (
         <div className="absolute bottom-1 right-1 text-xs font-bold opacity-60 text-slate-600">
           {file}
@@ -93,25 +110,25 @@ const Square = ({ piece, isDark, onClick, isSelected, isValidMove, isLastMove, r
         </div>
       )}
 
+      {/* Chess Piece */}
       {piece && (
-        <div className="flex items-center justify-center">
-          {getPieceComponent(piece)}
+        <StaticPiece piece={piece} />
+      )}
+
+      {/* Valid Move Indicators */}
+      {isValidMove && !piece && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="w-8 h-8 bg-green-500 rounded-full opacity-70" />
         </div>
       )}
-
-      {isValidMove && !piece && (
-        <div className="w-8 h-8 bg-green-500 rounded-full opacity-70" />
-      )}
-
       {isValidMove && piece && (
-        <div className="absolute inset-0 border-4 border-green-500 rounded opacity-70" />
+        <div className="absolute inset-1 border-4 border-green-500 rounded-lg opacity-70" />
       )}
     </div>
   )
 }
 
-export default function Chessboard({ playerColor = "white" }) {
-  // Simple state
+export default function Chessboard({ playerColor = "white", onMove, onGameOver, onTurnChange }) {
   const [board, setBoard] = useState(initialBoard)
   const [selectedSquare, setSelectedSquare] = useState(null)
   const [validMoves, setValidMoves] = useState([])
@@ -119,45 +136,38 @@ export default function Chessboard({ playerColor = "white" }) {
   const [currentTurn, setCurrentTurn] = useState("white")
   const [gameOver, setGameOver] = useState(false)
   const [gameStatus, setGameStatus] = useState("")
+  const [draggedPiece, setDraggedPiece] = useState(null)
 
-  // Local chess instance for move validation only
   const [chess] = useState(new Chess())
+  const boardRef = useRef()
 
   console.log(`♟️  Turn: ${currentTurn}, Player: ${playerColor}`)
 
   // Setup socket listeners once
   useEffect(() => {
     console.log("🔌 Setting up socket listeners")
-    
-    // Handle game updates from server
+
     const handleGameUpdate = (data) => {
       console.log("📨 Game update received:", data)
-      
-      // Update local chess state
       if (data.fen) {
         chess.load(data.fen)
         setBoard(parseFEN(data.fen))
       }
-      
-      // Update turn based on server data
       if (data.turn) {
         const newTurn = data.turn === "w" ? "white" : "black"
         console.log(`🔄 Turn changing: ${currentTurn} -> ${newTurn}`)
         setCurrentTurn(newTurn)
+        onTurnChange?.(newTurn)
       }
-      
-      // Update last move
       if (data.lastMove) {
         setLastMove(data.lastMove)
       }
-      
-      // Handle game over
       if (data.isGameOver || data.gameOver) {
         setGameOver(true)
-        setGameStatus(data.gameOver?.reason || "Game Over")
+        const reason = data.gameOver?.reason || "Game Over"
+        setGameStatus(reason)
+        onGameOver?.(reason)
       }
-      
-      // Clear selections
       setSelectedSquare(null)
       setValidMoves([])
     }
@@ -168,17 +178,14 @@ export default function Chessboard({ playerColor = "white" }) {
       setValidMoves([])
     }
 
-    // Remove any existing listeners and add new ones
-    socket.off("gameUpdate")
-    socket.off("moveError")
-    socket.on("gameUpdate", handleGameUpdate)
-    socket.on("moveError", handleMoveError)
+    socket.off("gameUpdate").on("gameUpdate", handleGameUpdate)
+    socket.off("moveError").on("moveError", handleMoveError)
 
     return () => {
       socket.off("gameUpdate")
       socket.off("moveError")
     }
-  }, [chess, currentTurn])
+  }, [chess, currentTurn, onGameOver, onTurnChange])
 
   // Get valid moves for a piece
   const getValidMoves = (row, col) => {

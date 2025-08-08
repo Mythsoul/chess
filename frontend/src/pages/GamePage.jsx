@@ -3,6 +3,7 @@ import socket from "../utils/socket"
 import Chessboard from "../components/Chessboard"
 import GameControls from "../components/GameControls"
 import MoveHistory from "../components/MoveHistory"
+import GameOverModal from "../components/GameOverModal"
 import { motion, AnimatePresence } from "framer-motion"
 import { FaChessKing } from "react-icons/fa"
 
@@ -12,6 +13,8 @@ export default function GamePage({ playerColor }) {
   const [boardFlipped, setBoardFlipped] = useState(false)
   const [moveHistory, setMoveHistory] = useState([])
   const [gameStatus, setGameStatus] = useState('playing')
+  const [gameOverResult, setGameOverResult] = useState(null)
+  const [showGameOverModal, setShowGameOverModal] = useState(false)
 
   useEffect(() => {
     socket.on("gameUpdate", (update) => {
@@ -20,26 +23,64 @@ export default function GamePage({ playerColor }) {
 
     socket.on("gameOver", (result) => {
       console.log("Game Over:", result)
+      setGameStatus('finished')
+      setGameOverResult(result.result || result)
+      setShowGameOverModal(true)
     })
 
-    // Timer countdown
+    // Handle draw offers
+    socket.on("drawOffer", (data) => {
+      if (window.confirm(`Your opponent has offered a draw. Do you accept?`)) {
+        socket.emit('accept_draw')
+      } else {
+        socket.emit('reject_draw')
+      }
+    })
+
+    // Handle draw responses
+    socket.on("drawOffered", (data) => {
+      // Show notification that draw was offered
+      console.log(data.message)
+    })
+
+    socket.on("drawRejected", (data) => {
+      alert("Your draw offer was rejected.")
+    })
+
+    // Handle player disconnection
+    socket.on("playerDisconnected", (data) => {
+      alert(data.message)
+    })
+
+    socket.on("playerReconnected", (data) => {
+      alert(data.message)
+    })
+
+    // Timer countdown - stop if game is finished
     const timer = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (gameState?.turn === "w" && prev.white > 0) {
-          return { ...prev, white: prev.white - 1 }
-        } else if (gameState?.turn === "b" && prev.black > 0) {
-          return { ...prev, black: prev.black - 1 }
-        }
-        return prev
-      })
+      if (gameStatus !== 'finished') {
+        setTimeLeft((prev) => {
+          if (gameState?.turn === "w" && prev.white > 0) {
+            return { ...prev, white: prev.white - 1 }
+          } else if (gameState?.turn === "b" && prev.black > 0) {
+            return { ...prev, black: prev.black - 1 }
+          }
+          return prev
+        })
+      }
     }, 1000)
 
     return () => {
       socket.off("gameUpdate")
       socket.off("gameOver")
+      socket.off("drawOffer")
+      socket.off("drawOffered")
+      socket.off("drawRejected")
+      socket.off("playerDisconnected")
+      socket.off("playerReconnected")
       clearInterval(timer)
     }
-  }, [gameState])
+  }, [gameState, gameStatus])
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60)
@@ -223,21 +264,9 @@ export default function GamePage({ playerColor }) {
                 </motion.div>
               </motion.div>
 
-              <motion.div 
-                className="text-slate-400 text-4xl font-bold"
-                animate={{ 
-                  scale: [1, 1.15, 1],
-                  opacity: [0.5, 1, 0.5],
-                  rotateZ: [0, 5, -5, 0]
-                }}
-                transition={{ 
-                  duration: 3, 
-                  repeat: Number.POSITIVE_INFINITY,
-                  ease: "easeInOut"
-                }}
-              >
+              <div className="text-slate-400 text-4xl font-bold">
                 VS
-              </motion.div>
+              </div>
 
               <motion.div
                 className="bg-slate-800/95 backdrop-blur-xl rounded-2xl px-8 py-5 border border-slate-600/60 shadow-2xl"
@@ -305,123 +334,48 @@ export default function GamePage({ playerColor }) {
             </div>
           </div>
 
-          {/* Enhanced Game Info Panel */}
-          <motion.div
-            className="bg-slate-800/95 backdrop-blur-xl rounded-2xl p-8 shadow-2xl border border-slate-600/60 w-full max-w-2xl"
-            initial={{ opacity: 0, y: 40, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{ 
-              type: "spring", 
-              stiffness: 200, 
-              damping: 15, 
-              delay: 0.8,
-              duration: 1
-            }}
-            whileHover={{
-              boxShadow: "0 0 60px rgba(0,0,0,0.7)",
-              scale: 1.02,
-              transition: { duration: 0.4, ease: "easeOut" }
-            }}
-          >
+          {/* Static Game Info Panel */}
+          <div className="bg-slate-800/95 backdrop-blur-xl rounded-2xl p-8 shadow-2xl border border-slate-600/60 w-full max-w-2xl">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
-              <motion.div
-                className="space-y-4"
-                whileHover={{ 
-                  scale: 1.08,
-                  transition: { duration: 0.3, ease: "easeOut" }
-                }}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 1, duration: 0.6 }}
-              >
+              <div className="space-y-4">
                 <div className="text-slate-400 text-sm font-medium">Your Color</div>
-                <motion.div 
-                  className={`text-4xl font-bold flex items-center justify-center gap-3 ${playerColor === "white" ? "text-slate-100" : "text-slate-600"}`}
-                  animate={{ 
-                    textShadow: playerColor === "white" 
-                      ? ["0 0 0px rgba(255,255,255,0)", "0 0 20px rgba(255,255,255,0.6)", "0 0 0px rgba(255,255,255,0)"]
-                      : ["0 0 0px rgba(0,0,0,0)", "0 0 20px rgba(0,0,0,0.6)", "0 0 0px rgba(0,0,0,0)"],
-                    scale: [1, 1.05, 1]
-                  }}
-                  transition={{ 
-                    duration: 4, 
-                    repeat: Number.POSITIVE_INFINITY,
-                    ease: "easeInOut"
-                  }}
-                >
-                  <motion.div
-                    animate={{ rotateY: [0, 360] }}
-                    transition={{ duration: 8, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
-                  >
-                    <FaChessKing />
-                  </motion.div>
+                <div className={`text-4xl font-bold flex items-center justify-center gap-3 ${playerColor === "white" ? "text-slate-100" : "text-slate-600"}`}>
+                  <FaChessKing />
                   {playerColor.toUpperCase()}
-                </motion.div>
-              </motion.div>
+                </div>
+              </div>
 
-              <motion.div
-                className="space-y-4"
-                whileHover={{ 
-                  scale: 1.08,
-                  transition: { duration: 0.3, ease: "easeOut" }
-                }}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 1.2, duration: 0.6 }}
-              >
+              <div className="space-y-4">
                 <div className="text-slate-400 text-sm font-medium">Game Mode</div>
-                <motion.div 
-                  className="text-white font-semibold text-xl"
-                  animate={{
-                    backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"],
-                  }}
-                  transition={{ duration: 8, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
-                >
-                  <span className="bg-gradient-to-r from-emerald-400 to-blue-500 bg-clip-text text-transparent">
-                    Rapid • 10+0
-                  </span>
-                </motion.div>
-              </motion.div>
+                <div className="text-white font-semibold text-xl">
+                  Rapid • 10+0
+                </div>
+              </div>
 
-              <motion.div
-                className="space-y-4"
-                whileHover={{ 
-                  scale: 1.08,
-                  transition: { duration: 0.3, ease: "easeOut" }
-                }}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 1.4, duration: 0.6 }}
-              >
+              <div className="space-y-4">
                 <div className="text-slate-400 text-sm font-medium">Status</div>
                 <div className="text-emerald-400 font-semibold flex items-center justify-center gap-3">
-                  <motion.span 
-                    className="relative flex h-4 w-4"
-                    animate={{ scale: [1, 1.3, 1] }}
-                    transition={{ duration: 2.5, repeat: Number.POSITIVE_INFINITY, ease: "easeInOut" }}
-                  >
-                    <motion.span 
-                      className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"
-                      animate={{ scale: [1, 2.5, 1], opacity: [0.75, 0, 0.75] }}
-                      transition={{ duration: 2.5, repeat: Number.POSITIVE_INFINITY, ease: "easeOut" }}
-                    />
+                  <span className="relative flex h-4 w-4">
                     <span className="relative inline-flex rounded-full h-4 w-4 bg-emerald-500 shadow-lg"></span>
-                  </motion.span>
-                  <motion.span
-                    animate={{ 
-                      opacity: [0.7, 1, 0.7],
-                      textShadow: ["0 0 0px rgba(16, 185, 129, 0)", "0 0 10px rgba(16, 185, 129, 0.6)", "0 0 0px rgba(16, 185, 129, 0)"]
-                    }}
-                    transition={{ duration: 2.5, repeat: Number.POSITIVE_INFINITY, ease: "easeInOut" }}
-                  >
-                    In Progress
-                  </motion.span>
+                  </span>
+                  <span>
+                    {gameStatus === 'playing' ? 'In Progress' : 'Finished'}
+                  </span>
                 </div>
-              </motion.div>
+              </div>
             </div>
-          </motion.div>
+          </div>
         </div>
       </div>
+      
+      {/* Game Over Modal */}
+      <GameOverModal 
+        isOpen={showGameOverModal}
+        result={gameOverResult}
+        playerColor={playerColor}
+        onClose={() => window.location.href = '/'}
+        onNewGame={() => window.location.href = '/'}
+      />
     </div>
   )
 }
