@@ -2,6 +2,7 @@ import { Server } from "socket.io";
 import http from "http"; 
 import express from "express"; 
 import { GameManager } from "./src/GameManager.js";
+import { db } from "./src/database.js";
 
 const app = express();
 const server = new http.Server(app);
@@ -18,15 +19,21 @@ const gameManager = new GameManager();
 io.on("connection", (socket) => {
     console.log("User connected:", socket.id);
 
+    // Authentication
+    socket.on("authenticate", async (userData) => {
+        console.log("User authenticating:", userData);
+        await gameManager.authenticateUser(socket, userData);
+    });
+
     // Init game request
-    socket.on("init_game", () => {
+    socket.on("init_game", async () => {
         console.log("Player requesting game:", socket.id);
-        gameManager.addToMatchmaking(socket);
+        await gameManager.addToMatchmaking(socket);
     });
 
     // Cancel matchmaking
     socket.on("cancel_matchmaking", () => {
-        gameManager.waitingPlayers = gameManager.waitingPlayers.filter(p => p.id !== socket.id);
+        gameManager.waitingPlayers = gameManager.waitingPlayers.filter(p => p.socket.id !== socket.id);
         socket.emit("matchmaking_cancelled");
     });
 
@@ -111,7 +118,8 @@ io.on("connection", (socket) => {
                         player.emit("gameOver", {
                             type: 'draw',
                             winner: null,
-                            result: drawResult.gameResult
+                            result: drawResult.gameResult,
+                            playerResult: 'draw'
                         });
                     });
                 } else {
@@ -139,7 +147,8 @@ io.on("connection", (socket) => {
                     player.emit("gameOver", {
                         type: 'draw',
                         winner: null,
-                        result: drawResult.gameResult
+                        result: drawResult.gameResult,
+                        playerResult: 'draw'
                     });
                 });
             }
@@ -171,7 +180,8 @@ io.on("connection", (socket) => {
                 opponent.emit("gameOver", {
                     type: 'resignation',
                     winner: resignResult.gameResult.winner,
-                    result: resignResult.gameResult
+                    result: resignResult.gameResult,
+                    playerResult: 'win'
                 });
             }
         }
@@ -197,7 +207,7 @@ io.on("connection", (socket) => {
         }
         
         // Remove from matchmaking
-        gameManager.waitingPlayers = gameManager.waitingPlayers.filter(p => p.id !== socket.id);
+        gameManager.waitingPlayers = gameManager.waitingPlayers.filter(p => p.socket.id !== socket.id);
         
         // Note: Don't remove from games immediately - allow for reconnection
     });
@@ -226,8 +236,181 @@ io.on("connection", (socket) => {
     });
 });
 
+// Middleware
+app.use(express.json());
+
+// Routes
 app.get("/", (req, res) => { 
     res.send("Chess Game Backend is running!"); 
+});
+
+// Get game by route
+app.get("/game/:route", async (req, res) => {
+    try {
+        const { route } = req.params;
+        const game = await db.getGameByRoute(route);
+        
+        if (!game) {
+            return res.status(404).json({ error: "Game not found" });
+        }
+        
+        res.json({
+            id: game.id,
+            route: game.route,
+            status: game.status,
+            whitePlayer: {
+                id: game.whitePlayer.id,
+                username: game.whitePlayer.username,
+                rating: game.whitePlayer.rating,
+                avatar: game.whitePlayer.avatar
+            },
+            blackPlayer: {
+                id: game.blackPlayer.id,
+                username: game.blackPlayer.username,
+                rating: game.blackPlayer.rating,
+                avatar: game.blackPlayer.avatar
+            },
+            moves: game.moves,
+            pgn: game.pgn,
+            fen: game.fen,
+            result: game.result,
+            endReason: game.endReason,
+            startedAt: game.startedAt,
+            endedAt: game.endedAt
+        });
+    } catch (error) {
+        console.error('Error fetching game:', error);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+// Get user's active games
+app.get("/user/:userId/games/active", async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const games = await db.getActiveGamesForUser(userId);
+        
+        res.json(games.map(game => ({
+            id: game.id,
+            route: game.route,
+            status: game.status,
+            whitePlayer: {
+                id: game.whitePlayer.id,
+                username: game.whitePlayer.username,
+                rating: game.whitePlayer.rating
+            },
+            blackPlayer: {
+                id: game.blackPlayer.id,
+                username: game.blackPlayer.username,
+                rating: game.blackPlayer.rating
+            },
+            startedAt: game.startedAt
+        })));
+    } catch (error) {
+        console.error('Error fetching user games:', error);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+// Get user's game history
+app.get("/user/:userId/games/history", async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const limit = parseInt(req.query.limit) || 50;
+        const games = await db.getUserGameHistory(userId, limit);
+        
+        res.json(games.map(game => ({
+            id: game.id,
+            route: game.route,
+            status: game.status,
+            result: game.result,
+            endReason: game.endReason,
+            whitePlayer: {
+                id: game.whitePlayer.id,
+                username: game.whitePlayer.username,
+                rating: game.whitePlayer.rating
+            },
+            blackPlayer: {
+                id: game.blackPlayer.id,
+                username: game.blackPlayer.username,
+                rating: game.blackPlayer.rating
+            },
+            startedAt: game.startedAt,
+            endedAt: game.endedAt
+        })));
+    } catch (error) {
+        console.error('Error fetching user game history:', error);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+// Create or get user
+app.post("/user", async (req, res) => {
+    try {
+        const { email, username, avatar } = req.body;
+        
+        let user = await db.getUserByEmail(email);
+        if (!user) {
+            user = await db.createUser({
+                email,
+                username: username || email.split('@')[0],
+                avatar: avatar || null
+            });
+        }
+        
+        res.json(user);
+    } catch (error) {
+        console.error('Error creating/getting user:', error);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+// Join game by route (for spectating or rejoining)
+app.post("/game/:route/join", async (req, res) => {
+    try {
+        const { route } = req.params;
+        const { userId } = req.body;
+        
+        const game = await db.getGameByRoute(route);
+        if (!game) {
+            return res.status(404).json({ error: "Game not found" });
+        }
+        
+        // Check if user is part of this game
+        const isPlayer = game.whiteId === userId || game.blackId === userId;
+        
+        res.json({
+            game: {
+                id: game.id,
+                route: game.route,
+                status: game.status,
+                whitePlayer: {
+                    id: game.whitePlayer.id,
+                    username: game.whitePlayer.username,
+                    rating: game.whitePlayer.rating,
+                    avatar: game.whitePlayer.avatar
+                },
+                blackPlayer: {
+                    id: game.blackPlayer.id,
+                    username: game.blackPlayer.username,
+                    rating: game.blackPlayer.rating,
+                    avatar: game.blackPlayer.avatar
+                },
+                moves: game.moves,
+                pgn: game.pgn,
+                fen: game.fen,
+                result: game.result,
+                endReason: game.endReason,
+                startedAt: game.startedAt,
+                endedAt: game.endedAt
+            },
+            isPlayer,
+            playerColor: isPlayer ? (game.whiteId === userId ? 'white' : 'black') : null
+        });
+    } catch (error) {
+        console.error('Error joining game:', error);
+        res.status(500).json({ error: "Internal server error" });
+    }
 });
 
 

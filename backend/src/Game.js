@@ -1,7 +1,7 @@
 import { Chess } from "chess.js";
 export class Game {
-    player1 = null;
-    player2 = null;
+    player1 = null; // socket
+    player2 = null; // socket
     moves = [];
     winner = null;
     chess = null;
@@ -13,12 +13,24 @@ export class Game {
     gameStartTime = null;
     lastMoveTime = null;
     
-    constructor(player1, player2) {
-        this.player1 = player1;
-        this.player2 = player2;
+    // Database info
+    id = null;
+    route = null;
+    whitePlayer = null; // user object
+    blackPlayer = null; // user object
+    
+    constructor(player1Socket, player2Socket, gameData = {}) {
+        this.player1 = player1Socket; // white player socket
+        this.player2 = player2Socket; // black player socket
         this.chess = new Chess();
         this.gameStartTime = Date.now();
         this.lastMoveTime = Date.now();
+        
+        // Database info
+        this.id = gameData.id;
+        this.route = gameData.route;
+        this.whitePlayer = gameData.whitePlayer;
+        this.blackPlayer = gameData.blackPlayer;
     }
   
     makeMove(socket, move) {
@@ -192,7 +204,8 @@ export class Game {
                 remainingPlayer.emit('gameOver', {
                     type: 'abandonment',
                     winner: remainingPlayer.id,
-                    result: this.gameResult
+                    result: this.gameResult,
+                    playerResult: 'win'
                 });
             }
         }, 30000); // 30 second timeout
@@ -200,32 +213,37 @@ export class Game {
         this.disconnectTimers.set(socket.id, timer);
         
         return {
-            disconnectedPlayer: socket.id,
-            remainingPlayer: remainingPlayer.id,
-            timeout: 30000
+            timeout: 30000,
+            disconnectedPlayer: socket.id
         };
     }
-
+    
     handleReconnect(socket) {
-        this.disconnectedPlayers.delete(socket.id);
-        
-        // Clear disconnect timer
-        if (this.disconnectTimers.has(socket.id)) {
-            clearTimeout(this.disconnectTimers.get(socket.id));
-            this.disconnectTimers.delete(socket.id);
+        if (this.disconnectedPlayers.has(socket.id)) {
+            // Clear disconnect timer
+            const timer = this.disconnectTimers.get(socket.id);
+            if (timer) {
+                clearTimeout(timer);
+                this.disconnectTimers.delete(socket.id);
+            }
+            
+            this.disconnectedPlayers.delete(socket.id);
+            return { reconnected: true };
         }
-        
-        return {
-            reconnectedPlayer: socket.id,
-            gameState: this.getGameState()
-        };
+        return { reconnected: false };
     }
-
+    
     getOpponent(socket) {
         return socket === this.player1 ? this.player2 : this.player1;
     }
 
-    isPlayerInGame(socket) {
-        return socket === this.player1 || socket === this.player2;
+    isPlayerInGame(socketOrUserId) {
+        if (typeof socketOrUserId === 'string') {
+            // User ID check
+            return this.whitePlayer?.id === socketOrUserId || this.blackPlayer?.id === socketOrUserId;
+        } else {
+            // Socket check
+            return socketOrUserId === this.player1 || socketOrUserId === this.player2;
+        }
     }
 }
