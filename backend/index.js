@@ -32,9 +32,11 @@ io.on("connection", (socket) => {
 
     // Handle game moves
     socket.on("move", (move) => {
+        console.log("Move received from", socket.id, ":", move);
         const game = gameManager.getGame(socket.id);
         if (game) {
             const moveResult = game.makeMove(socket, move);
+            console.log("Move result:", moveResult);
             
             if (moveResult.valid) {
                 // Notify both players
@@ -44,7 +46,9 @@ io.on("connection", (socket) => {
                     playerId: socket.id
                 };
 
+                console.log("Broadcasting to players:", game.player1.id, game.player2.id);
                 [game.player1, game.player2].forEach(player => {
+                    console.log("Sending gameUpdate to", player.id);
                     player.emit("gameUpdate", moveNotification);
                 });
 
@@ -55,12 +59,15 @@ io.on("connection", (socket) => {
                     });
                 }
             } else {
+                console.log("Invalid move from", socket.id, ":", moveResult.error);
                 // Send error only to player who made invalid move
                 socket.emit("moveError", {
                     error: moveResult.error,
                     attempted: move
                 });
             }
+        } else {
+            console.log("No game found for socket", socket.id);
         }
     });
    

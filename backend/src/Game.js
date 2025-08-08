@@ -17,6 +17,13 @@ export class Game {
         const currentPlayer = isPlayer1Turn ? this.player1 : this.player2;
         const otherPlayer = isPlayer1Turn ? this.player2 : this.player1;
 
+        console.log("Move validation:");
+        console.log("- Total moves:", this.moves.length);
+        console.log("- Is player1 turn:", isPlayer1Turn);
+        console.log("- Current player ID:", currentPlayer.id);
+        console.log("- Requesting player ID:", socket.id);
+        console.log("- Players match:", socket === currentPlayer);
+
         if (socket !== currentPlayer) {
             return {
                 valid: false,
